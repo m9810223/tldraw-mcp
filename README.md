@@ -54,14 +54,14 @@ Requires **Node ≥ 20**. `jq` only needed for `exec_jq` (`brew install jq` / `a
 
 ```bash
 # Install (or reinstall after upstream changes)
-claude mcp remove tldraw 2>/dev/null; rm -rf ~/.npm/_npx
-claude mcp add tldraw -- npx -y github:m9810223/tldraw-mcp
+claude mcp remove tldraw-m9810223 2>/dev/null; rm -rf ~/.npm/_npx
+claude mcp add tldraw-m9810223 -- npx -y github:m9810223/tldraw-mcp
 
 # Remove
-claude mcp remove tldraw
+claude mcp remove tldraw-m9810223
 ```
 
-Restart Claude Code, then `/mcp` lists `tldraw` with 17 tools.
+The first arg (`tldraw-m9810223`) is the local server name — pick whatever you like, then refer to it the same way in subsequent commands. Restart Claude Code, then `/mcp` lists it with 22 tools.
 
 ## Wire up to other MCP clients
 

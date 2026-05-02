@@ -408,6 +408,162 @@ export async function execJq(args: z.infer<typeof execJqSchema>) {
   });
 }
 
+type ShapeBounds = { id: string; x: number; y: number; w: number; h: number; shape: TLRecord };
+
+function bounds(shape: TLRecord): ShapeBounds | null {
+  if (shape.typeName !== 'shape') return null;
+  const props = shape.props as { w?: number; h?: number } | undefined;
+  if (typeof props?.w !== 'number' || typeof props?.h !== 'number') return null;
+  return {
+    id: shape.id as string,
+    x: shape.x as number,
+    y: shape.y as number,
+    w: props.w,
+    h: props.h,
+    shape,
+  };
+}
+
+function loadBounds(file: TldrFile, ids: string[]): ShapeBounds[] {
+  return ids.map((id) => {
+    const shape = findShape(file, id);
+    if (!shape) throw new Error(`Shape not found: ${id}`);
+    const b = bounds(shape);
+    if (!b) throw new Error(`Shape ${id} (type=${shape.type}) has no measurable w/h; align/distribute only supports geo/text/note/frame.`);
+    return b;
+  });
+}
+
+export const alignSchema = z.object({
+  file: FilePath,
+  ids: z.array(z.string()).min(2),
+  axis: z.enum(['left', 'right', 'top', 'bottom', 'center-x', 'center-y']),
+});
+
+export async function align(args: z.infer<typeof alignSchema>) {
+  return withFileLock(args.file, async () => {
+    let file = await loadFile(args.file);
+    const items = loadBounds(file, args.ids);
+
+    let target: number;
+    switch (args.axis) {
+      case 'left':
+        target = Math.min(...items.map((i) => i.x));
+        for (const i of items) i.x = target;
+        break;
+      case 'right':
+        target = Math.max(...items.map((i) => i.x + i.w));
+        for (const i of items) i.x = target - i.w;
+        break;
+      case 'top':
+        target = Math.min(...items.map((i) => i.y));
+        for (const i of items) i.y = target;
+        break;
+      case 'bottom':
+        target = Math.max(...items.map((i) => i.y + i.h));
+        for (const i of items) i.y = target - i.h;
+        break;
+      case 'center-x':
+        target = (Math.min(...items.map((i) => i.x)) + Math.max(...items.map((i) => i.x + i.w))) / 2;
+        for (const i of items) i.x = target - i.w / 2;
+        break;
+      case 'center-y':
+        target = (Math.min(...items.map((i) => i.y)) + Math.max(...items.map((i) => i.y + i.h))) / 2;
+        for (const i of items) i.y = target - i.h / 2;
+        break;
+    }
+
+    for (const i of items) {
+      const updated = { ...i.shape, x: i.x, y: i.y };
+      validateShape(updated);
+      file = replaceRecord(file, updated);
+    }
+    await saveFile(args.file, file);
+    return { aligned: items.map((i) => ({ id: i.id, x: i.x, y: i.y })) };
+  });
+}
+
+export const distributeSchema = z.object({
+  file: FilePath,
+  ids: z.array(z.string()).min(3).describe('Need at least 3 shapes — first and last anchor, middle ones get even gaps'),
+  axis: z.enum(['horizontal', 'vertical']),
+});
+
+export async function distribute(args: z.infer<typeof distributeSchema>) {
+  return withFileLock(args.file, async () => {
+    let file = await loadFile(args.file);
+    const items = loadBounds(file, args.ids);
+
+    if (args.axis === 'horizontal') {
+      items.sort((a, b) => a.x - b.x);
+      const first = items[0];
+      const last = items[items.length - 1];
+      const totalSpan = last.x + last.w - first.x;
+      const sumWidths = items.reduce((s, i) => s + i.w, 0);
+      const gap = (totalSpan - sumWidths) / (items.length - 1);
+      let cursor = first.x + first.w + gap;
+      for (let i = 1; i < items.length - 1; i++) {
+        items[i].x = cursor;
+        cursor += items[i].w + gap;
+      }
+    } else {
+      items.sort((a, b) => a.y - b.y);
+      const first = items[0];
+      const last = items[items.length - 1];
+      const totalSpan = last.y + last.h - first.y;
+      const sumHeights = items.reduce((s, i) => s + i.h, 0);
+      const gap = (totalSpan - sumHeights) / (items.length - 1);
+      let cursor = first.y + first.h + gap;
+      for (let i = 1; i < items.length - 1; i++) {
+        items[i].y = cursor;
+        cursor += items[i].h + gap;
+      }
+    }
+
+    for (const i of items) {
+      const updated = { ...i.shape, x: i.x, y: i.y };
+      validateShape(updated);
+      file = replaceRecord(file, updated);
+    }
+    await saveFile(args.file, file);
+    return { distributed: items.map((i) => ({ id: i.id, x: i.x, y: i.y })) };
+  });
+}
+
+export const autoLayoutSchema = z.object({
+  file: FilePath,
+  ids: z.array(z.string()).min(2),
+  direction: z.enum(['horizontal', 'vertical']).default('horizontal'),
+  gap: z.number().nonnegative().default(40),
+  startX: z.number().optional().describe('Defaults to the first shape\'s current x'),
+  startY: z.number().optional().describe('Defaults to the first shape\'s current y'),
+});
+
+export async function autoLayout(args: z.infer<typeof autoLayoutSchema>) {
+  return withFileLock(args.file, async () => {
+    let file = await loadFile(args.file);
+    const items = loadBounds(file, args.ids);
+
+    let x = args.startX ?? items[0].x;
+    let y = args.startY ?? items[0].y;
+    const positions: { id: string; x: number; y: number }[] = [];
+
+    for (const item of items) {
+      item.x = x;
+      item.y = y;
+      positions.push({ id: item.id, x, y });
+      if (args.direction === 'horizontal') x += item.w + args.gap;
+      else y += item.h + args.gap;
+
+      const updated = { ...item.shape, x: item.x, y: item.y };
+      validateShape(updated);
+      file = replaceRecord(file, updated);
+    }
+    await saveFile(args.file, file);
+    return { positions, direction: args.direction, gap: args.gap };
+  });
+}
+
 export const fitToTextSchema = z.object({
   file: FilePath,
   id: z.string(),

@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  align,
+  autoLayout,
   connect,
   createGroup,
   createPage,
   createRect,
   createText,
   deleteShape,
+  distribute,
   execJq,
   fitToText,
   getShape,
@@ -240,6 +243,64 @@ describe('tools integration', () => {
     const b = await createRect({ file: ctx.file, x: 200, y: 0, w: 50, h: 50 });
     const arrow = await connect({ file: ctx.file, fromId: a.id, toId: b.id });
     await expect(fitToText({ file: ctx.file, id: arrow.arrowId })).rejects.toThrow(/only supports/);
+  });
+
+  it('align left puts every shape at the leftmost x', async () => {
+    const a = await createRect({ file: ctx.file, x: 50, y: 0, w: 100, h: 50 });
+    const b = await createRect({ file: ctx.file, x: 200, y: 100, w: 100, h: 50 });
+    const c = await createRect({ file: ctx.file, x: 30, y: 200, w: 100, h: 50 });
+    await align({ file: ctx.file, ids: [a.id, b.id, c.id], axis: 'left' });
+    for (const id of [a.id, b.id, c.id]) {
+      const s = await getShape({ file: ctx.file, id });
+      expect(s.x).toBe(30);
+    }
+  });
+
+  it('align center-y centers shapes vertically against shared midline', async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 100, h: 100 });
+    const b = await createRect({ file: ctx.file, x: 200, y: 200, w: 100, h: 100 });
+    await align({ file: ctx.file, ids: [a.id, b.id], axis: 'center-y' });
+    const sa = await getShape({ file: ctx.file, id: a.id });
+    const sb = await getShape({ file: ctx.file, id: b.id });
+    const ca = (sa.y as number) + ((sa.props as { h: number }).h) / 2;
+    const cb = (sb.y as number) + ((sb.props as { h: number }).h) / 2;
+    expect(ca).toBe(cb);
+  });
+
+  it('distribute horizontal evens out gaps between shapes', async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 100, h: 50 });
+    const b = await createRect({ file: ctx.file, x: 130, y: 0, w: 100, h: 50 });
+    const c = await createRect({ file: ctx.file, x: 500, y: 0, w: 100, h: 50 });
+    const result = await distribute({ file: ctx.file, ids: [a.id, b.id, c.id], axis: 'horizontal' });
+    const middle = result.distributed.find((d) => d.id === b.id)!;
+    expect(middle.x).toBeGreaterThan(100);
+    expect(middle.x).toBeLessThan(500);
+  });
+
+  it('auto_layout horizontal chains shapes with the given gap', async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 100, h: 50 });
+    const b = await createRect({ file: ctx.file, x: 999, y: 999, w: 80, h: 50 });
+    const c = await createRect({ file: ctx.file, x: 50, y: 200, w: 60, h: 50 });
+    const r = await autoLayout({
+      file: ctx.file,
+      ids: [a.id, b.id, c.id],
+      direction: 'horizontal',
+      gap: 20,
+      startX: 0,
+      startY: 0,
+    });
+    expect(r.positions[0]).toEqual({ id: a.id, x: 0, y: 0 });
+    expect(r.positions[1]).toEqual({ id: b.id, x: 120, y: 0 }); // 0 + 100 + 20
+    expect(r.positions[2]).toEqual({ id: c.id, x: 220, y: 0 }); // 120 + 80 + 20
+  });
+
+  it('auto_layout rejects shapes without measurable bounds', async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    const b = await createRect({ file: ctx.file, x: 200, y: 0, w: 50, h: 50 });
+    const arrow = await connect({ file: ctx.file, fromId: a.id, toId: b.id });
+    await expect(
+      autoLayout({ file: ctx.file, ids: [a.id, arrow.arrowId], direction: 'horizontal', gap: 10 }),
+    ).rejects.toThrow(/measurable/);
   });
 });
 
