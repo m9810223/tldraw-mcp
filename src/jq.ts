@@ -14,6 +14,9 @@ export async function runJq(filter: string, input: string, args: string[] = []):
       if (code === 0) resolve({ stdout, stderr });
       else reject(new Error(`jq exited ${code}: ${stderr}`));
     });
+    child.stdin.on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code !== 'EPIPE') reject(err);
+    });
     child.stdin.end(input);
   });
 }
