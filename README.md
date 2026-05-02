@@ -10,33 +10,33 @@ Working skeleton. Schema validation is wired (`@tldraw/tlschema` validators run 
 
 ### File / page lifecycle
 
-| Tool                | What it does                                                         |
-| ------------------- | -------------------------------------------------------------------- |
-| `create_empty_file` | Create a fresh `.tldr` with a default page                           |
-| `create_page`       | Add a new page                                                       |
-| `list_pages`        | List pages with id, name, ordering index                             |
+| Tool                | What it does                                                                  |
+| ------------------- | ----------------------------------------------------------------------------- |
+| `create_empty_file` | Create a fresh `.tldr` with a default page                                    |
+| `create_page`       | Add a new page                                                                |
+| `list_pages`        | List pages with id, name, ordering index                                      |
 | `move_to_page`      | Move shapes; `bindings: 'error' \| 'pull' \| 'cut'` controls binding handling |
 
 ### Shapes
 
-| Tool           | What it does                                                       |
-| -------------- | ------------------------------------------------------------------ |
-| `create_rect`  | Create a rectangle (geo shape)                                     |
-| `create_text`  | Create a text shape                                                |
-| `create_group` | Group shapes by reparenting them                                   |
-| `ungroup`      | Dissolve a group, reparenting its children to the group's parent   |
-| `connect`      | Arrow + bindings between two same-page shapes                      |
-| `list_shapes`  | List shapes — id, type, x, y, label only                           |
-| `get_shape`    | Full record of one shape by id                                     |
-| `update_shape` | Shallow-merge patch (use nested `{ "props": {...} }` for prop edits) |
+| Tool           | What it does                                                                    |
+| -------------- | ------------------------------------------------------------------------------- |
+| `create_rect`  | Create a rectangle (geo shape)                                                  |
+| `create_text`  | Create a text shape                                                             |
+| `create_group` | Group shapes by reparenting them                                                |
+| `ungroup`      | Dissolve a group, reparenting its children to the group's parent                |
+| `connect`      | Arrow + bindings between two same-page shapes                                   |
+| `list_shapes`  | List shapes — id, type, x, y, label only                                        |
+| `get_shape`    | Full record of one shape by id                                                  |
+| `update_shape` | Shallow-merge patch (use nested `{ "props": {...} }` for prop edits)            |
 | `delete_shape` | Delete by id; `cascade: true` (default) also removes attached arrows + bindings |
 
 ### Discovery & escape hatch (inspired by official `tldraw-mcp-app`)
 
-| Tool         | What it does                                                                            | Token cost |
-| ------------ | --------------------------------------------------------------------------------------- | ---------- |
-| `search_api` | List supported shape types + curated required props. Pass `{type, verbose:true}` to dump live prop names from `@tldraw/tlschema` for any type (including ones not in the curated list) | low / medium  |
-| `exec_jq`    | Run a `jq` filter against the file. `write=true` persists (auto-checkpoint first)       | varies     |
+| Tool         | What it does                                                                                                                                                                           | Token cost   |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| `search_api` | List supported shape types + curated required props. Pass `{type, verbose:true}` to dump live prop names from `@tldraw/tlschema` for any type (including ones not in the curated list) | low / medium |
+| `exec_jq`    | Run a `jq` filter against the file. `write=true` persists (auto-checkpoint first)                                                                                                      | varies       |
 
 ### Checkpoints (safety)
 
@@ -60,10 +60,6 @@ claude mcp add tldraw-m9810223 -- npx -y github:m9810223/tldraw-mcp
 # Install — user scope: every project on this machine (recommended)
 claude mcp remove tldraw-m9810223 -s user 2>/dev/null; rm -rf ~/.npm/_npx
 claude mcp add -s user tldraw-m9810223 -- npx -y github:m9810223/tldraw-mcp
-
-# Remove (match the scope you installed under)
-claude mcp remove tldraw-m9810223          # local (default)
-claude mcp remove tldraw-m9810223 -s user  # user
 ```
 
 The first arg (`tldraw-m9810223`) is the local server name — pick whatever you like, then refer to it the same way in subsequent commands. Restart Claude Code, then `/mcp` lists it with 22 tools.
@@ -72,11 +68,11 @@ The first arg (`tldraw-m9810223`) is the local server name — pick whatever you
 
 Same JSON shape, different config file location:
 
-| Client          | Config path                                                              |
-| --------------- | ------------------------------------------------------------------------ |
-| Claude Desktop  | `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) |
-| Cursor          | `~/.cursor/mcp.json`                                                     |
-| VS Code         | `.vscode/mcp.json`                                                       |
+| Client         | Config path                                                               |
+| -------------- | ------------------------------------------------------------------------- |
+| Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) |
+| Cursor         | `~/.cursor/mcp.json`                                                      |
+| VS Code        | `.vscode/mcp.json`                                                        |
 
 ## Bootstrapping a `.tldr` file
 
@@ -90,13 +86,13 @@ create_empty_file({ file: "/tmp/demo.tldr" })
 
 The Cloudflare-hosted official MCP exposes only `search` + `exec` (run any JS in a live tldraw Editor). This skeleton goes the opposite way — typed JSON edits over `.tldr` files — and borrows the discovery pattern (`search_api`) and escape hatch (`exec_jq`) so an LLM can fall through when typed tools don't cover an operation.
 
-|              | Official `tldraw-mcp-app`           | This skeleton                                  |
-| ------------ | ----------------------------------- | ---------------------------------------------- |
-| Transport    | streamable-http + sse (Cloudflare)  | stdio (works in Claude Code directly)          |
-| Runtime      | Real tldraw Editor in widget iframe | Pure Node, edits raw JSON                      |
+|              | Official `tldraw-mcp-app`           | This skeleton                                                       |
+| ------------ | ----------------------------------- | ------------------------------------------------------------------- |
+| Transport    | streamable-http + sse (Cloudflare)  | stdio (works in Claude Code directly)                               |
+| Runtime      | Real tldraw Editor in widget iframe | Pure Node, edits raw JSON                                           |
 | Tools        | 2 (`search`, `exec`) + checkpoints  | 17: file/page lifecycle + 9 shape ops + search_api + exec_jq + ckpt |
-| Live preview | Yes (widget iframe)                 | No (open the file in tldraw to view)           |
-| Coverage     | Whole Editor API                    | Geo / text / arrow + jq escape hatch           |
+| Live preview | Yes (widget iframe)                 | No (open the file in tldraw to view)                                |
+| Coverage     | Whole Editor API                    | Geo / text / arrow + jq escape hatch                                |
 
 ## Known gaps
 
