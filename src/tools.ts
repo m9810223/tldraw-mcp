@@ -888,6 +888,10 @@ export async function moveToPage(args: z.infer<typeof moveToPageSchema>) {
     const targetPage = file.records.find((r) => r.typeName === 'page' && r.id === args.pageId);
     if (!targetPage) throw new Error(`Page not found: ${args.pageId}`);
 
+    for (const id of args.shapeIds) {
+      if (!findShape(file, id)) throw new Error(`Shape not found: ${id}`);
+    }
+
     const moveSet = new Set(args.shapeIds);
 
     if (args.bindings === 'pull') {
