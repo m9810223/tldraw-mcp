@@ -27,7 +27,7 @@ Draw the **OAuth 2.0 Authorization Code Flow** with MCP `tldraw-m9810223`. Save 
 - 4 nodes: `User`, `Client`, `Auth Server`, `Resource Server`
 - Label every arrow with a step number and the action (e.g. `1. /authorize`, `7. POST /token`)
 - Lay out with `graph_layout(direction="LR")`
-- Finally call `fit_to_text` on every node so the boxes hug their text
+- Finally use the layout / text-fitting tools so boxes hug their text
 ```
 
 **3. View the result** — drop `./oauth.tldr` onto [tldraw.com](https://tldraw.com), or use the [tldraw VS Code extension](https://marketplace.visualstudio.com/items?itemName=tldraw-org.tldraw-vscode) for live preview.
