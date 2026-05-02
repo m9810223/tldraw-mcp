@@ -133,6 +133,78 @@ If you installed globally with Option 2:
 
 Restart Claude Code, then `/mcp` should list the `tldraw` server with 17 tools.
 
+## Removing the MCP server
+
+```bash
+claude mcp remove tldraw
+```
+
+Adjust scope when you registered with a specific one — `claude mcp remove tldraw -s user` or `-s project`. List what's currently registered with `claude mcp list`.
+
+To also remove the npx cache so a fresh `claude mcp add` later re-clones:
+
+```bash
+rm -rf ~/.npm/_npx
+```
+
+If you used Option 2 (`npm install -g github:m9810223/tldraw-mcp`):
+
+```bash
+npm uninstall -g tldraw-mcp
+```
+
+## Forcing a reinstall (cache busting)
+
+`npx -y github:m9810223/tldraw-mcp` caches the clone under `~/.npm/_npx/`,
+so subsequent runs use the cached version even after upstream pushes new
+commits. Three ways to refresh:
+
+### Option A · Pin a specific commit / branch / tag
+
+```bash
+claude mcp remove tldraw
+claude mcp add tldraw -- npx -y github:m9810223/tldraw-mcp#main
+# or pin a commit / tag for reproducibility
+claude mcp add tldraw -- npx -y github:m9810223/tldraw-mcp#abc1234
+```
+
+`npx` treats `#<ref>` as part of the spec key, so a different ref always
+forces a fresh clone.
+
+### Option B · Wipe the npx cache (most aggressive)
+
+```bash
+rm -rf ~/.npm/_npx
+```
+
+Affects every `npx -y ...` cache, not just this project. Next call to any
+`npx` package will re-clone / re-download.
+
+### Option C · Clone locally and point at it
+
+When iterating on the MCP itself, skip `npx` entirely:
+
+```bash
+git clone https://github.com/m9810223/tldraw-mcp.git ~/tldraw-mcp
+cd ~/tldraw-mcp && npm install && npm run build
+
+claude mcp remove tldraw
+claude mcp add tldraw -- node ~/tldraw-mcp/dist/index.js
+```
+
+Now `git pull && npm run build` is enough to pick up changes — no cache
+involved.
+
+### Verifying which version is loaded
+
+```bash
+# Inspect the cached npx clone (commit hash)
+git -C ~/.npm/_npx/*/node_modules/tldraw-mcp log --oneline -3 2>/dev/null
+
+# Or check the live MCP server
+claude mcp list
+```
+
 ## Wire up to other MCP clients
 
 Same JSON shape, different config file location:
