@@ -22,17 +22,17 @@ Restart Claude Code. `/mcp` should now list `tldraw-m9810223`.
 **2. Try the demo prompt** in Claude Code:
 
 ```md
-Recreate this diagram with MCP `tldraw-m9810223`, save to `./demo.tldr`:
-https://nickkossolapov.github.io/fame-boy/building-a-game-boy-emulator-in-fsharp/images/architecture.svg
+Draw the Shai-Hulud supply-chain attack flow described in this article with MCP `tldraw-m9810223`, save to `./demo.tldr`:
+https://semgrep.dev/blog/2026/malicious-dependency-in-pytorch-lightning-used-for-ai-training/
 
-- Match the nodes, arrows, and labels from the source
+- Match the actors and how data/control flows between them
 - Polish the result at the end
 ```
 
 **3. View the result** — drop `./demo.tldr` onto [tldraw.com](https://tldraw.com), or use the [tldraw VS Code extension](https://marketplace.visualstudio.com/items?itemName=tldraw-org.tldraw-vscode) for live preview.
 
 <!-- TODO: replace with screenshot -->
-<!-- ![Game Boy hardware architecture recreated by tldraw-mcp](docs/demo.png) -->
+<!-- ![Shai-Hulud supply-chain attack flow recreated by tldraw-mcp](docs/demo.png) -->
 
 ## Tools
 
