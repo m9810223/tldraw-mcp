@@ -50,12 +50,10 @@ The token-saving design: tools take primitive args, return ids or `ok`. The full
 
 ## Install
 
-Replace `<USER>` with the GitHub user/org that hosts this repo.
-
 ### Option 1 · `npx` (no install, recommended)
 
 ```bash
-npx -y github:<USER>/tldraw-mcp
+npx -y github:m9810223/tldraw-mcp
 ```
 
 First run clones, runs `npm install`, then triggers the `prepare` script which builds `dist/`. Subsequent runs are cached.
@@ -63,28 +61,28 @@ First run clones, runs `npm install`, then triggers the `prepare` script which b
 Pin a branch / tag / commit:
 
 ```bash
-npx -y github:<USER>/tldraw-mcp#main
-npx -y github:<USER>/tldraw-mcp#v0.1.0
-npx -y github:<USER>/tldraw-mcp#abc1234
+npx -y github:m9810223/tldraw-mcp#main
+npx -y github:m9810223/tldraw-mcp#v0.1.0
+npx -y github:m9810223/tldraw-mcp#abc1234
 ```
 
 ### Option 2 · Global install
 
 ```bash
-npm install -g github:<USER>/tldraw-mcp
+npm install -g github:m9810223/tldraw-mcp
 tldraw-mcp   # the bin is on PATH
 ```
 
 ### Option 3 · Private repo over SSH
 
 ```bash
-npx -y git+ssh://git@github.com/<USER>/tldraw-mcp.git
+npx -y git+ssh://git@github.com/m9810223/tldraw-mcp.git
 ```
 
 ### Option 4 · Local clone (for development)
 
 ```bash
-git clone https://github.com/<USER>/tldraw-mcp.git
+git clone https://github.com/m9810223/tldraw-mcp.git
 cd tldraw-mcp
 npm install
 npm run build
@@ -103,7 +101,7 @@ node dist/index.js   # stdio MCP — waits on stdin
 `claude mcp add` (recommended):
 
 ```bash
-claude mcp add tldraw npx -y github:<USER>/tldraw-mcp
+claude mcp add tldraw npx -y github:m9810223/tldraw-mcp
 ```
 
 …or by editing `.mcp.json` (project) / `~/.claude.json` (user-global):
@@ -113,7 +111,7 @@ claude mcp add tldraw npx -y github:<USER>/tldraw-mcp
   "mcpServers": {
     "tldraw": {
       "command": "npx",
-      "args": ["-y", "github:<USER>/tldraw-mcp"]
+      "args": ["-y", "github:m9810223/tldraw-mcp"]
     }
   }
 }
@@ -157,29 +155,35 @@ The Cloudflare-hosted official MCP exposes only `search` + `exec` (run any JS in
 | ------------ | ----------------------------------- | ---------------------------------------------- |
 | Transport    | streamable-http + sse (Cloudflare)  | stdio (works in Claude Code directly)          |
 | Runtime      | Real tldraw Editor in widget iframe | Pure Node, edits raw JSON                      |
-| Tools        | 2 (`search`, `exec`) + checkpoints  | 7 typed CRUD + `search_api` + `exec_jq` + ckpt |
+| Tools        | 2 (`search`, `exec`) + checkpoints  | 17: file/page lifecycle + 9 shape ops + search_api + exec_jq + ckpt |
 | Live preview | Yes (widget iframe)                 | No (open the file in tldraw to view)           |
 | Coverage     | Whole Editor API                    | Geo / text / arrow + jq escape hatch           |
 
 ## Known gaps
 
-- No schema validation — bad input may produce a file tldraw refuses to open
-- No multi-page support — everything goes on `page:main`
-- No grouping, alignment, ordering tools
-- `index` is naive: appends above the current max; doesn't support insert-between
-- No file lock — concurrent writes can corrupt
-- Schema version pinning not enforced — newer tldraw may need migration
+- `index` (z-order) only supports appending above the current max — no insert-between
+- No alignment / distribution tools (use `update_shape` to set `x`/`y` directly, or `exec_jq`)
+- No image / video / asset support
+- Schema version pinning is informational only — opening a file in a newer tldraw may trigger migrations
+- `search_api` curated list is hand-maintained alongside the live `@tldraw/tlschema` reflection
 
 ## Architecture
 
 ```
 src/
-  index.ts       MCP server entry, tool registration
+  index.ts       MCP server entry, tool registration (stdio transport)
   tools.ts       Tool handlers + zod input schemas
-  shapes.ts      tldraw record factories (geo/text/arrow/binding)
-  store.ts       Load/save .tldr, helpers (id gen, indexing, find)
+  shapes.ts      tldraw record factories (geo/text/arrow/group/binding)
+  store.ts       Load/save .tldr + withFileLock; helpers (id gen, indexing, find, page-of-shape, bindings-for-shape)
+  template.ts    Empty .tldr generator using @tldraw/tlschema serialize()
+  validate.ts    validateShape / validateBinding using createShapeValidator + createBindingValidator
   checkpoint.ts  Timestamped backups under .tldraw-mcp-checkpoints/
   jq.ts          Shell-out to jq for the exec_jq escape hatch
+
+test/
+  unit/          store + validate (13 tests)
+  integration/   tools end-to-end on tmp .tldr (18 tests)
+  contract/      loadStoreSnapshot against real @tldraw/store (4 tests)
 ```
 
 Pure JSON manipulation — no `@tldraw/store`, no DOM, no React.
