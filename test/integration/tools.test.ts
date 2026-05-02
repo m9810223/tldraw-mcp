@@ -433,21 +433,35 @@ describe('tools integration', () => {
     expect(widenedGapBC).toBe(baselineGapBC); // no arrow B→C, gap unchanged
   });
 
-  it('bend_overlapping_arrows spreads parallel arrows symmetrically', async () => {
+  it('bend_overlapping_arrows: reverse-direction arrows land on opposite visual sides (same raw bend)', async () => {
     const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
     const b = await createRect({ file: ctx.file, x: 200, y: 0, w: 50, h: 50 });
-    const ab1 = await connect({ file: ctx.file, fromId: a.id, toId: b.id });
-    const ab2 = await connect({ file: ctx.file, fromId: b.id, toId: a.id });
+    const ab = await connect({ file: ctx.file, fromId: a.id, toId: b.id });
+    const ba = await connect({ file: ctx.file, fromId: b.id, toId: a.id });
 
     const result = await bendOverlappingArrows({ file: ctx.file, amount: 30 });
     expect(result.groups).toBe(1);
     const f = await loadFile(ctx.file);
-    const arrow1 = f.records.find((r) => r.id === ab1.arrowId)!;
-    const arrow2 = f.records.find((r) => r.id === ab2.arrowId)!;
-    const bend1 = (arrow1.props as { bend: number }).bend;
-    const bend2 = (arrow2.props as { bend: number }).bend;
-    expect(bend1).toBe(-30);
-    expect(bend2).toBe(30);
+    const bendOf = (id: string) =>
+      (f.records.find((r) => r.id === id)!.props as { bend: number }).bend;
+    // tldraw's `bend` is in the arrow's local frame: same raw value on a reversed arrow
+    // = opposite visual side, which is what we want for non-overlap.
+    expect(bendOf(ab.arrowId)).toBe(bendOf(ba.arrowId));
+    expect(Math.abs(bendOf(ab.arrowId))).toBe(30);
+  });
+
+  it('bend_overlapping_arrows: same-direction parallel arrows get opposite raw bends', async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    const b = await createRect({ file: ctx.file, x: 200, y: 0, w: 50, h: 50 });
+    const ab1 = await connect({ file: ctx.file, fromId: a.id, toId: b.id });
+    const ab2 = await connect({ file: ctx.file, fromId: a.id, toId: b.id });
+
+    await bendOverlappingArrows({ file: ctx.file, amount: 30 });
+    const f = await loadFile(ctx.file);
+    const bendOf = (id: string) =>
+      (f.records.find((r) => r.id === id)!.props as { bend: number }).bend;
+    expect(bendOf(ab1.arrowId)).toBe(-30);
+    expect(bendOf(ab2.arrowId)).toBe(30);
   });
 
   it('bend_overlapping_arrows leaves single-edge arrows untouched', async () => {
@@ -472,15 +486,15 @@ describe('tools integration', () => {
     await bendOverlappingArrows({
       file: ctx.file,
       amount: 30,
-      priority: [ab2.arrowId], // ab2 → first → bend=-30 spread starts here? Actually first slot.
+      priority: [ab2.arrowId],
     });
     const f = await loadFile(ctx.file);
     const bendOf = (id: string) =>
       (f.records.find((r) => r.id === id)!.props as { bend: number }).bend;
-    // priority list rank: ab2=0; ab1, ab3 keep drawing order → indices 1,2
-    // sorted = [ab2, ab1, ab3]; bends = [-30, 0, 30]
-    expect(bendOf(ab2.arrowId)).toBe(-30);
-    expect(bendOf(ab1.arrowId)).toBe(0);
+    // priority sort = [ab2, ab1, ab3]; bends ordered by |bend| ascending = [0, -30, +30]
+    // → ab2 (most important) gets 0 (straightest), ab1 gets -30, ab3 gets +30
+    expect(bendOf(ab2.arrowId)).toBe(0);
+    expect(bendOf(ab1.arrowId)).toBe(-30);
     expect(bendOf(ab3.arrowId)).toBe(30);
   });
 
@@ -503,9 +517,9 @@ describe('tools integration', () => {
     const f = await loadFile(ctx.file);
     const bend1 = (f.records.find((r) => r.id === ab1.arrowId)!.props as { bend: number }).bend;
     const bend2 = (f.records.find((r) => r.id === ab2.arrowId)!.props as { bend: number }).bend;
-    expect(bend1).not.toBe(0);
-    expect(bend2).not.toBe(0);
-    expect(bend1 + bend2).toBe(0); // symmetric
+    // ab1 (A→B) and ab2 (B→A) are reversed in direction → same raw bend = opposite sides
+    expect(bend1).toBe(bend2);
+    expect(Math.abs(bend1)).toBe(30);
   });
 });
 

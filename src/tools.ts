@@ -702,16 +702,32 @@ export async function graphLayout(args: z.infer<typeof graphLayoutSchema>) {
 }
 
 function applyBendsToOverlappingArrows(file: TldrFile, priority: string[] | undefined, amount: number): TldrFile {
-  const groups = groupOverlappingArrows(getArrowEndpoints(file));
+  const endpoints = getArrowEndpoints(file);
+  const epMap = new Map(endpoints.map((e) => [e.arrowId, e]));
+  const groups = groupOverlappingArrows(endpoints);
+
   for (const arrowIds of groups) {
     const sorted = sortByPriority(arrowIds, priority);
-    const bends = bendValuesFor(sorted.length, amount);
+    // Reorder bends by ascending |bend| so the highest-priority arrow stays straightest.
+    const bendsByImportance = [...bendValuesFor(sorted.length, amount)].sort(
+      (x, y) => Math.abs(x) - Math.abs(y),
+    );
+    // Canonical = first arrow's actual direction. Reversed arrows in the same group
+    // need the bend sign flipped because tldraw's `bend` is in the arrow's local frame
+    // (perpendicular to motion); same raw value on a reversed arrow lands on the opposite
+    // visual side, which is exactly what we want for non-overlap.
+    const canonical = epMap.get(sorted[0])!;
+
     for (let i = 0; i < sorted.length; i++) {
+      const ep = epMap.get(sorted[i])!;
+      const sameDir = ep.fromId === canonical.fromId;
+      const bend = sameDir ? bendsByImportance[i] : -bendsByImportance[i];
+
       const arrow = findShape(file, sorted[i]);
       if (!arrow) continue;
       const merged: TLRecord = {
         ...arrow,
-        props: { ...(arrow.props as object), bend: bends[i] },
+        props: { ...(arrow.props as object), bend },
       };
       validateShape(merged);
       file = replaceRecord(file, merged);
@@ -722,11 +738,11 @@ function applyBendsToOverlappingArrows(file: TldrFile, priority: string[] | unde
 
 export const bendOverlappingArrowsSchema = z.object({
   file: FilePath,
-  amount: z.number().default(30).describe('Max bend in pixels; group is spread symmetrically across [-amount, +amount].'),
+  amount: z.number().default(30).describe('Max bend magnitude in pixels; the group is spread across |bend| ∈ [0, amount].'),
   priority: z
     .array(z.string())
     .optional()
-    .describe('Arrow ids ordered most-important → least; the most-important stays straightest. Unlisted arrows fall back to drawing order.'),
+    .describe('Arrow ids ordered most-important → least; the most-important gets the smallest |bend| (closest to straight). Unlisted arrows fall back to drawing order.'),
 });
 
 export async function bendOverlappingArrows(args: z.infer<typeof bendOverlappingArrowsSchema>) {
@@ -735,11 +751,12 @@ export async function bendOverlappingArrows(args: z.infer<typeof bendOverlapping
     const groups = groupOverlappingArrows(getArrowEndpoints(file));
     const updated = applyBendsToOverlappingArrows(file, args.priority, args.amount);
     await saveFile(args.file, updated);
-    const summary = groups.flatMap((arrowIds) => {
-      const sorted = sortByPriority(arrowIds, args.priority);
-      const bends = bendValuesFor(sorted.length, args.amount);
-      return sorted.map((id, i) => ({ id, bend: bends[i] }));
-    });
+    const summary = groups.flatMap((arrowIds) =>
+      arrowIds.map((id) => {
+        const arrow = findShape(updated, id)!;
+        return { id, bend: (arrow.props as { bend: number }).bend };
+      }),
+    );
     return { groups: groups.length, updated: summary };
   });
 }

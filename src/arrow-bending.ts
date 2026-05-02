@@ -21,13 +21,17 @@ export function getArrowEndpoints(file: TldrFile): ArrowEndpoints[] {
   return result;
 }
 
+export function pairKey(a: string, b: string): string {
+  return a < b ? `${a}|${b}` : `${b}|${a}`;
+}
+
 export function groupOverlappingArrows(endpoints: ArrowEndpoints[]): string[][] {
   const groups = new Map<string, string[]>();
   for (const e of endpoints) {
-    const key = [e.fromId, e.toId].sort().join('|');
-    const arr = groups.get(key) ?? [];
-    arr.push(e.arrowId);
-    groups.set(key, arr);
+    const key = pairKey(e.fromId, e.toId);
+    const arr = groups.get(key);
+    if (arr) arr.push(e.arrowId);
+    else groups.set(key, [e.arrowId]);
   }
   return [...groups.values()].filter((ids) => ids.length >= 2);
 }

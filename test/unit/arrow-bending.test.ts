@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { bendValuesFor, groupOverlappingArrows, sortByPriority } from '../../src/arrow-bending.js';
+import { bendValuesFor, groupOverlappingArrows, pairKey, sortByPriority } from '../../src/arrow-bending.js';
+
+describe('pairKey', () => {
+  it('produces the same key regardless of argument order', () => {
+    expect(pairKey('shape:a', 'shape:b')).toBe(pairKey('shape:b', 'shape:a'));
+  });
+
+  it('is deterministic on repeated calls', () => {
+    expect(pairKey('shape:a', 'shape:b')).toBe(pairKey('shape:a', 'shape:b'));
+  });
+
+  it('separates with a pipe', () => {
+    expect(pairKey('a', 'b')).toBe('a|b');
+    expect(pairKey('b', 'a')).toBe('a|b');
+  });
+});
 
 describe('bendValuesFor', () => {
   it('returns 0 for a single arrow', () => {
