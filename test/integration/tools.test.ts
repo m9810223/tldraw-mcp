@@ -12,8 +12,10 @@ import {
   execJq,
   fitToText,
   getShape,
+  graphLayout,
   listPages,
   listShapes,
+  measureArrowLabels,
   moveToPage,
   searchApi,
   ungroup,
@@ -322,7 +324,74 @@ describe('tools integration', () => {
     ).rejects.toThrow(/measurable/);
   });
 
-  it('auto_layout fitArrowLabels widens gap when an arrow label connects two shapes', async () => {
+  it('measure_arrow_labels reports label sizes and dx/dy', async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 100, h: 50 });
+    const b = await createRect({ file: ctx.file, x: 400, y: 0, w: 100, h: 50 });
+    await connect({ file: ctx.file, fromId: a.id, toId: b.id, text: 'long enough label here' });
+    await connect({ file: ctx.file, fromId: a.id, toId: b.id }); // unlabeled, should be omitted
+
+    const result = await measureArrowLabels({ file: ctx.file });
+    expect(result.count).toBe(1);
+    expect(result.labels[0].label).toBe('long enough label here');
+    expect(result.labels[0].fromId).toBe(a.id);
+    expect(result.labels[0].toId).toBe(b.id);
+    expect(result.labels[0].w).toBeGreaterThan(0);
+    expect(result.labels[0].dx).toBe(400);
+    expect(result.labels[0].dy).toBe(0);
+    expect(typeof result.labels[0].roomForLabel).toBe('boolean');
+  });
+
+  it('graph_layout places branching topology with non-overlapping ranks', async () => {
+    const root = await createRect({ file: ctx.file, x: 0, y: 0, w: 120, h: 60, text: 'root' });
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 120, h: 60, text: 'A' });
+    const b = await createRect({ file: ctx.file, x: 0, y: 0, w: 120, h: 60, text: 'B' });
+    const a1 = await createRect({ file: ctx.file, x: 0, y: 0, w: 120, h: 60, text: 'A1' });
+    const a2 = await createRect({ file: ctx.file, x: 0, y: 0, w: 120, h: 60, text: 'A2' });
+    await connect({ file: ctx.file, fromId: root.id, toId: a.id });
+    await connect({ file: ctx.file, fromId: root.id, toId: b.id });
+    await connect({ file: ctx.file, fromId: a.id, toId: a1.id });
+    await connect({ file: ctx.file, fromId: a.id, toId: a2.id });
+
+    const result = await graphLayout({
+      file: ctx.file,
+      direction: 'LR',
+      nodeGap: 40,
+      rankGap: 100,
+      labelPadding: 0,
+      startX: 0,
+      startY: 0,
+    });
+    expect(result.nodes).toBe(5);
+    expect(result.edges).toBe(4);
+
+    const rootShape = await getShape({ file: ctx.file, id: root.id });
+    const aShape = await getShape({ file: ctx.file, id: a.id });
+    const a1Shape = await getShape({ file: ctx.file, id: a1.id });
+    expect((aShape.x as number)).toBeGreaterThan(rootShape.x as number);
+    expect((a1Shape.x as number)).toBeGreaterThan(aShape.x as number);
+  });
+
+  it('graph_layout TB places ranks vertically', async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 100, h: 50 });
+    const b = await createRect({ file: ctx.file, x: 0, y: 0, w: 100, h: 50 });
+    await connect({ file: ctx.file, fromId: a.id, toId: b.id });
+
+    await graphLayout({
+      file: ctx.file,
+      direction: 'TB',
+      nodeGap: 40,
+      rankGap: 80,
+      labelPadding: 0,
+      startX: 0,
+      startY: 0,
+    });
+
+    const aShape = await getShape({ file: ctx.file, id: a.id });
+    const bShape = await getShape({ file: ctx.file, id: b.id });
+    expect((bShape.y as number)).toBeGreaterThan(aShape.y as number);
+  });
+
+  it("auto_layout fitArrowLabels widens gap when an arrow label connects two shapes", async () => {
     const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 100, h: 50 });
     const b = await createRect({ file: ctx.file, x: 0, y: 0, w: 100, h: 50 });
     const c = await createRect({ file: ctx.file, x: 0, y: 0, w: 100, h: 50 });

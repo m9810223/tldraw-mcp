@@ -21,6 +21,10 @@ import {
   distributeSchema,
   fitToText,
   fitToTextSchema,
+  graphLayout,
+  graphLayoutSchema,
+  measureArrowLabels,
+  measureArrowLabelsSchema,
   createPage,
   createPageSchema,
   listPages,
@@ -120,9 +124,19 @@ const tools = {
     handler: distribute,
   },
   auto_layout: {
-    description: 'Lay shapes out in a horizontal or vertical chain with a fixed gap. Inspired by flowchart auto-arrange.',
+    description: 'Lay shapes out in a horizontal or vertical chain with a fixed gap. Inspired by flowchart auto-arrange. For arbitrary graphs, prefer graph_layout.',
     schema: autoLayoutSchema,
     handler: autoLayout,
+  },
+  graph_layout: {
+    description: 'Lay shapes out as a directed graph using dagre, honoring arrow connections + label widths. Best for non-chain topologies (branches, parallel ranks).',
+    schema: graphLayoutSchema,
+    handler: graphLayout,
+  },
+  measure_arrow_labels: {
+    description: 'Report measured label sizes (w, h) and current dx/dy distance between bound endpoints for every labeled arrow. Use to decide if you need more spacing before tweaking positions.',
+    schema: measureArrowLabelsSchema,
+    handler: measureArrowLabels,
   },
   create_page: {
     description: 'Create a new page in the document. Returns the new page id.',

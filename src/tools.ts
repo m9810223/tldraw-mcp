@@ -22,6 +22,7 @@ import { makeArrowBinding, makeArrowShape, makeGeoShape, makeGroupShape, makeTex
 import { listCheckpoints, restoreCheckpoint, saveCheckpoint } from './checkpoint.js';
 import { runJq } from './jq.js';
 import { emptyTldrFile } from './template.js';
+import { collectGraph, runDagre } from './graph-layout.js';
 import { extractText, measureText } from './text-metrics.js';
 import { validateBinding, validateShape } from './validate.js';
 
@@ -581,6 +582,120 @@ export async function autoLayout(args: z.infer<typeof autoLayoutSchema>) {
     }
     await saveFile(args.file, file);
     return { positions, direction: args.direction };
+  });
+}
+
+export const measureArrowLabelsSchema = z.object({
+  file: FilePath,
+  arrowIds: z.array(z.string()).optional().describe('Limit to these arrow ids; default = every arrow with a non-empty text label'),
+});
+
+export async function measureArrowLabels(args: z.infer<typeof measureArrowLabelsSchema>) {
+  const file = await loadFile(args.file);
+  const arrows = shapesOf(file).filter((s) => s.type === 'arrow');
+  const filtered = args.arrowIds ? arrows.filter((a) => args.arrowIds!.includes(a.id as string)) : arrows;
+
+  const labeled = filtered.flatMap((arrow) => {
+    const text = (arrow.props as { text?: string } | undefined)?.text ?? '';
+    if (!text) return [];
+
+    const arrowBindings = bindingsForShape(file, arrow.id as string).filter((b) => b.fromId === arrow.id);
+    const start = arrowBindings.find((b) => (b.props as { terminal: string }).terminal === 'start');
+    const end = arrowBindings.find((b) => (b.props as { terminal: string }).terminal === 'end');
+
+    const fromShape = start ? findShape(file, start.toId as string) : undefined;
+    const toShape = end ? findShape(file, end.toId as string) : undefined;
+
+    let dx: number | undefined;
+    let dy: number | undefined;
+    if (fromShape && toShape) {
+      const fb = boundsOrZero(fromShape);
+      const tb = boundsOrZero(toShape);
+      dx = (tb.x + tb.w / 2) - (fb.x + fb.w / 2);
+      dy = (tb.y + tb.h / 2) - (fb.y + fb.h / 2);
+    }
+
+    const m = measureText({ text, size: 'm', padding: 0 });
+    return [
+      {
+        arrowId: arrow.id as string,
+        fromId: (start?.toId as string | undefined) ?? null,
+        toId: (end?.toId as string | undefined) ?? null,
+        label: text,
+        w: m.w,
+        h: m.h,
+        dx,
+        dy,
+        roomForLabel: dx !== undefined && dy !== undefined ? Math.hypot(dx, dy) >= m.w : null,
+      },
+    ];
+  });
+
+  return { count: labeled.length, labels: labeled };
+}
+
+function boundsOrZero(shape: TLRecord): { x: number; y: number; w: number; h: number } {
+  const props = shape.props as { w?: number; h?: number } | undefined;
+  return {
+    x: (shape.x as number | undefined) ?? 0,
+    y: (shape.y as number | undefined) ?? 0,
+    w: typeof props?.w === 'number' ? props.w : 0,
+    h: typeof props?.h === 'number' ? props.h : 0,
+  };
+}
+
+export const graphLayoutSchema = z.object({
+  file: FilePath,
+  ids: z.array(z.string()).optional().describe('Shapes to lay out. Default = every non-arrow shape with measurable bounds.'),
+  direction: z.enum(['LR', 'TB', 'RL', 'BT']).default('LR'),
+  nodeGap: z.number().nonnegative().default(60).describe('Spacing between nodes in the same rank.'),
+  rankGap: z.number().nonnegative().default(120).describe('Spacing between ranks. Increase if arrow labels are long.'),
+  labelPadding: z.number().nonnegative().default(20),
+  startX: z.number().default(0),
+  startY: z.number().default(0),
+});
+
+export async function graphLayout(args: z.infer<typeof graphLayoutSchema>) {
+  return withFileLock(args.file, async () => {
+    let file = await loadFile(args.file);
+    const { nodes, edges } = collectGraph(file, args.ids);
+    if (nodes.length === 0) {
+      throw new Error('graph_layout: no measurable shapes to lay out');
+    }
+
+    const positions = runDagre({
+      nodes,
+      edges,
+      direction: args.direction,
+      nodeGap: args.nodeGap,
+      rankGap: args.rankGap,
+      labelPadding: args.labelPadding,
+    });
+
+    const minX = Math.min(...[...positions.values()].map((p) => p.x));
+    const minY = Math.min(...[...positions.values()].map((p) => p.y));
+    const offsetX = args.startX - minX;
+    const offsetY = args.startY - minY;
+
+    const placed: { id: string; x: number; y: number }[] = [];
+    for (const [id, pos] of positions) {
+      const shape = findShape(file, id);
+      if (!shape) continue;
+      const x = pos.x + offsetX;
+      const y = pos.y + offsetY;
+      const updated = { ...shape, x, y };
+      validateShape(updated);
+      file = replaceRecord(file, updated);
+      placed.push({ id, x, y });
+    }
+
+    await saveFile(args.file, file);
+    return {
+      placed,
+      direction: args.direction,
+      nodes: nodes.length,
+      edges: edges.length,
+    };
   });
 }
 

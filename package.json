@@ -23,6 +23,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@dagrejs/dagre": "^1.1.4",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "@tldraw/tlschema": "^3.0.0",
     "@tldraw/utils": "^3.0.0",

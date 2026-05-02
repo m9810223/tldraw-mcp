@@ -82,6 +82,16 @@ Use the `create_empty_file` tool, or save an empty canvas from tldraw.com and po
 create_empty_file({ file: "/tmp/demo.tldr" })
 ```
 
+## Viewing / editing the output
+
+| Tool | Notes |
+| --- | --- |
+| [tldraw.com](https://tldraw.com) | Drag the `.tldr` file onto the page |
+| [tldraw VS Code extension](https://marketplace.visualstudio.com/items?itemName=tldraw-org.tldraw-vscode) | Native `.tldr` preview + edit inside VS Code; survives file changes from the MCP server |
+| Tldraw Desktop / official editor | Drop the file in |
+
+The VS Code extension is the smoothest dev loop — keep `code path/to/file.tldr` open in a tab while the MCP edits it; the editor refreshes on disk change.
+
 ## Design comparison vs official `tldraw-mcp-app`
 
 The Cloudflare-hosted official MCP exposes only `search` + `exec` (run any JS in a live tldraw Editor). This skeleton goes the opposite way — typed JSON edits over `.tldr` files — and borrows the discovery pattern (`search_api`) and escape hatch (`exec_jq`) so an LLM can fall through when typed tools don't cover an operation.
