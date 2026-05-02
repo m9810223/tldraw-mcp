@@ -238,8 +238,8 @@ describe('tools integration', () => {
     });
     const wide = await fitToText({ file: ctx.file, id });
     const narrow = await fitToText({ file: ctx.file, id, maxWidth: 120 });
-    expect(narrow.h).toBeGreaterThan(wide.h);
-    expect(narrow.lines).toBeGreaterThan(wide.lines);
+    expect(narrow.h!).toBeGreaterThan(wide.h!);
+    expect(narrow.lines!).toBeGreaterThan(wide.lines!);
   });
 
   it('fit_to_text on arrow returns measurement with advisory (no mutation)', async () => {

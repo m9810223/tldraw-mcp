@@ -44,7 +44,8 @@ export const createRectSchema = z.object({
   size: z.enum(['s', 'm', 'l', 'xl']).optional(),
 });
 
-export async function createRect(args: z.infer<typeof createRectSchema>) {
+export async function createRect(rawArgs: z.input<typeof createRectSchema>) {
+  const args = createRectSchema.parse(rawArgs);
   return withFileLock(args.file, async () => {
     const file = await loadFile(args.file);
     const id = newId('shape');
@@ -547,7 +548,8 @@ export const autoLayoutSchema = z.object({
   labelPadding: z.number().nonnegative().default(20),
 });
 
-export async function autoLayout(args: z.infer<typeof autoLayoutSchema>) {
+export async function autoLayout(rawArgs: z.input<typeof autoLayoutSchema>) {
+  const args = autoLayoutSchema.parse(rawArgs);
   return withFileLock(args.file, async () => {
     let file = await loadFile(args.file);
     const items = loadBounds(file, args.ids);
@@ -841,7 +843,8 @@ export const fitToTextSchema = z.object({
   padding: z.number().nonnegative().default(16),
 });
 
-export async function fitToText(args: z.infer<typeof fitToTextSchema>) {
+export async function fitToText(rawArgs: z.input<typeof fitToTextSchema>) {
+  const args = fitToTextSchema.parse(rawArgs);
   return withFileLock(args.file, async () => {
     const file = await loadFile(args.file);
     const shape = findShape(file, args.id);

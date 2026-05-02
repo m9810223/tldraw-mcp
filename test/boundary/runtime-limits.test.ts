@@ -102,7 +102,7 @@ describe('exec_jq error propagation', () => {
 
   it('reports stderr on type errors but does not throw if jq exits 0', async () => {
     const r = await execJq({ file: ctx.file, filter: '.records | length', write: false });
-    expect(r.result).toContain('2'); // empty file has 2 records (document + page)
+    expect((r as { result: string }).result).toContain('2'); // empty file has 2 records (document + page)
   });
 });
 
@@ -338,10 +338,10 @@ describe('exec_jq write=true', () => {
       filter: '.records[0].name = "TOUCHED" | .',
       write: true,
     });
-    expect(result.written).toBe(true);
+    expect((result as { written: boolean }).written).toBe(true);
 
     const after = await execJq({ file: ctx.file, filter: '.records[0].name', write: false });
-    expect(after.result).toContain('TOUCHED');
+    expect((after as { result: string }).result).toContain('TOUCHED');
 
     const fs = await import('node:fs/promises');
     const path = await import('node:path');
