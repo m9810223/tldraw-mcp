@@ -98,11 +98,15 @@ node dist/index.js   # stdio MCP — waits on stdin
 
 ## Wire up to Claude Code
 
-`claude mcp add` (recommended):
+`claude mcp add` (recommended). The `--` separator is required so `-y` is
+passed to `npx` instead of being parsed as a `claude mcp add` flag:
 
 ```bash
-claude mcp add tldraw npx -y github:m9810223/tldraw-mcp
+claude mcp add tldraw -- npx -y github:m9810223/tldraw-mcp
 ```
+
+Add `-s user` for global (all projects) or `-s project` for a `.mcp.json`
+checked into the repo. Default is `-s local` (this project, your machine).
 
 …or by editing `.mcp.json` (project) / `~/.claude.json` (user-global):
 
