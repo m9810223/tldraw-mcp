@@ -50,51 +50,16 @@ The token-saving design: tools take primitive args, return ids or `ok`. The full
 
 ## Install
 
-### Option 1 · `npx` (no install, recommended)
+Requires **Node ≥ 20**. `jq` only needed for `exec_jq` (`brew install jq` / `apt-get install jq`).
 
 ```bash
-npx -y github:m9810223/tldraw-mcp
+npx -y github:m9810223/tldraw-mcp                 # zero-install, recommended
+npx -y github:m9810223/tldraw-mcp#main             # pin branch / tag / commit
+npm install -g github:m9810223/tldraw-mcp          # global bin: `tldraw-mcp`
+npx -y git+ssh://git@github.com/m9810223/tldraw-mcp.git   # private over SSH
 ```
 
-First run clones, runs `npm install`, then triggers the `prepare` script which builds `dist/`. Subsequent runs are cached.
-
-Pin a branch / tag / commit:
-
-```bash
-npx -y github:m9810223/tldraw-mcp#main
-npx -y github:m9810223/tldraw-mcp#v0.1.0
-npx -y github:m9810223/tldraw-mcp#abc1234
-```
-
-### Option 2 · Global install
-
-```bash
-npm install -g github:m9810223/tldraw-mcp
-tldraw-mcp   # the bin is on PATH
-```
-
-### Option 3 · Private repo over SSH
-
-```bash
-npx -y git+ssh://git@github.com/m9810223/tldraw-mcp.git
-```
-
-### Option 4 · Local clone (for development)
-
-```bash
-git clone https://github.com/m9810223/tldraw-mcp.git
-cd tldraw-mcp
-npm install
-npm run build
-node dist/index.js   # stdio MCP — waits on stdin
-```
-
-### Requirements
-
-- Node.js ≥ 20 (enforced by `engines.node`)
-- `jq` on `PATH` (only required for the `exec_jq` tool)
-  - macOS: `brew install jq`
-  - Debian/Ubuntu: `sudo apt-get install -y jq`
+For dev: `git clone … && npm install && npm run build && node dist/index.js`. The `prepare` script auto-builds `dist/` after the git-source install.
 
 ## Wire up to Claude Code
 
