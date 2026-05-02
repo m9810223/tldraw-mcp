@@ -257,3 +257,155 @@ describe('search_api verbose for unknown type', () => {
     expect(r.error).toMatch(/Unknown shape type/);
   });
 });
+
+describe('align — every axis', () => {
+  const ctx = withTempFile();
+
+  it.each(['left', 'right', 'top', 'bottom', 'center-x', 'center-y'] as const)(
+    'axis=%s aligns all shapes consistently',
+    async (axis) => {
+      const a = await createRect({ file: ctx.file, x: 50, y: 30, w: 100, h: 50 });
+      const b = await createRect({ file: ctx.file, x: 200, y: 130, w: 80, h: 40 });
+      const c = await createRect({ file: ctx.file, x: 30, y: 200, w: 60, h: 60 });
+      const r = await align({ file: ctx.file, ids: [a.id, b.id, c.id], axis });
+
+      const get = (id: string) => r.aligned.find((i) => i.id === id)!;
+      const A = get(a.id);
+      const B = get(b.id);
+      const C = get(c.id);
+
+      switch (axis) {
+        case 'left':
+          expect(A.x).toBe(B.x);
+          expect(B.x).toBe(C.x);
+          break;
+        case 'right':
+          expect(A.x + 100).toBe(B.x + 80);
+          expect(B.x + 80).toBe(C.x + 60);
+          break;
+        case 'top':
+          expect(A.y).toBe(B.y);
+          expect(B.y).toBe(C.y);
+          break;
+        case 'bottom':
+          expect(A.y + 50).toBe(B.y + 40);
+          expect(B.y + 40).toBe(C.y + 60);
+          break;
+        case 'center-x':
+          expect(A.x + 50).toBe(B.x + 40);
+          expect(B.x + 40).toBe(C.x + 30);
+          break;
+        case 'center-y':
+          expect(A.y + 25).toBe(B.y + 20);
+          expect(B.y + 20).toBe(C.y + 30);
+          break;
+      }
+    },
+  );
+});
+
+describe('distribute vertical', () => {
+  const ctx = withTempFile();
+  it('vertical distributes evenly between outermost two', async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    const b = await createRect({ file: ctx.file, x: 0, y: 30, w: 50, h: 50 });
+    const c = await createRect({ file: ctx.file, x: 0, y: 500, w: 50, h: 50 });
+    const r = await distribute({ file: ctx.file, ids: [a.id, b.id, c.id], axis: 'vertical' });
+    const middle = r.distributed.find((d) => d.id === b.id)!;
+    expect(middle.y).toBeGreaterThan(50);
+    expect(middle.y).toBeLessThan(500);
+  });
+});
+
+describe('fit_to_text on shape with empty text', () => {
+  const ctx = withTempFile();
+  it('returns skipped marker without modifying the shape', async () => {
+    const r = await createRect({ file: ctx.file, x: 0, y: 0, w: 100, h: 50 });
+    const before = await getShape({ file: ctx.file, id: r.id });
+    const result = await fitToText({ file: ctx.file, id: r.id, padding: 16 });
+    expect(result.skipped).toBe('no text');
+    const after = await getShape({ file: ctx.file, id: r.id });
+    expect((after.props as { w: number }).w).toBe((before.props as { w: number }).w);
+  });
+});
+
+describe('exec_jq write=true', () => {
+  const ctx = withTempFile();
+  it('writes filter result back and creates a pre_exec_jq checkpoint', async () => {
+    await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    const result = await execJq({
+      file: ctx.file,
+      filter: '.records[0].name = "TOUCHED" | .',
+      write: true,
+    });
+    expect(result.written).toBe(true);
+
+    const after = await execJq({ file: ctx.file, filter: '.records[0].name', write: false });
+    expect(after.result).toContain('TOUCHED');
+
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const ckptDir = path.join(path.dirname(ctx.file), '.tldraw-mcp-checkpoints');
+    const entries = await fs.readdir(ckptDir);
+    expect(entries.some((e) => e.includes('pre_exec_jq'))).toBe(true);
+  });
+});
+
+describe('concurrent writes are serialized via withFileLock', () => {
+  const ctx = withTempFile();
+  it('5 parallel create_rect calls all land cleanly', async () => {
+    const results = await Promise.all(
+      Array.from({ length: 5 }, (_, i) =>
+        createRect({ file: ctx.file, x: i * 100, y: 0, w: 50, h: 50, text: `n${i}` }),
+      ),
+    );
+    expect(new Set(results.map((r) => r.id)).size).toBe(5);
+
+    const list = await import('../../src/tools.js').then((m) =>
+      m.listShapes({ file: ctx.file }),
+    );
+    expect(list.count).toBe(5);
+  });
+});
+
+describe('delete_shape × move_to_page binding interactions', () => {
+  const ctx = withTempFile();
+
+  it("bindings='cut' deletes orphan arrow when both endpoints stay behind", async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    const b = await createRect({ file: ctx.file, x: 200, y: 0, w: 50, h: 50 });
+    const c = await createRect({ file: ctx.file, x: 0, y: 200, w: 50, h: 50 });
+    const arrow = await connect({ file: ctx.file, fromId: a.id, toId: b.id });
+    const p2 = await createPage({ file: ctx.file, name: 'P2' });
+
+    await moveToPage({
+      file: ctx.file,
+      shapeIds: [c.id],
+      pageId: p2.pageId,
+      bindings: 'cut',
+    });
+
+    const arrowStillThere = await getShape({ file: ctx.file, id: arrow.arrowId });
+    expect(arrowStillThere).toBeDefined();
+  });
+
+  it('cascade=true on shape with arrow chain removes the entire chain', async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    const b = await createRect({ file: ctx.file, x: 200, y: 0, w: 50, h: 50 });
+    const arrow = await connect({ file: ctx.file, fromId: a.id, toId: b.id });
+
+    const r = await deleteShape({ file: ctx.file, id: a.id, cascade: true });
+    expect(r.removed).toContain(a.id);
+    expect(r.removed).toContain(arrow.arrowId);
+    expect(r.removed.filter((id) => id.startsWith('binding:')).length).toBe(2);
+  });
+
+  it('cascade=false on shape leaves bindings dangling but does not crash', async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    const b = await createRect({ file: ctx.file, x: 200, y: 0, w: 50, h: 50 });
+    await connect({ file: ctx.file, fromId: a.id, toId: b.id });
+
+    const r = await deleteShape({ file: ctx.file, id: a.id, cascade: false });
+    expect(r.removed).toEqual([a.id]);
+  });
+});
