@@ -31,8 +31,9 @@ https://semgrep.dev/blog/2026/malicious-dependency-in-pytorch-lightning-used-for
 
 **3. View the result** — drop `./demo.tldr` onto [tldraw.com](https://tldraw.com), or use the [tldraw VS Code extension](https://marketplace.visualstudio.com/items?itemName=tldraw-org.tldraw-vscode) for live preview.
 
-<!-- TODO: replace with screenshot -->
-<!-- ![Shai-Hulud supply-chain attack flow recreated by tldraw-mcp](docs/demo.png) -->
+![Shai-Hulud supply-chain attack flow recreated by tldraw-mcp](docs/demo.png)
+
+Source file: [`docs/demo.tldr`](docs/demo.tldr)
 
 ## Tools
 
