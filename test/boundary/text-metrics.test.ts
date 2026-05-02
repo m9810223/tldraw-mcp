@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { measureText } from '../../src/text-metrics.js';
 
-const SIZE_M_CHAR_W = 9;
+const SIZE_M_CHAR_W = 15;
 const SIZE_M_LINE_H = 28;
 
 describe('measureText boundary cases', () => {
@@ -21,9 +21,9 @@ describe('measureText boundary cases', () => {
     const charWidth = SIZE_M_CHAR_W;
 
     it.each([
-      { chars: 9, maxWidth: 90, expectLines: 1, label: 'one under exact (9*9=81 < 90)' },
-      { chars: 10, maxWidth: 90, expectLines: 1, label: 'fits exactly (10*9=90 = maxWidth)' },
-      { chars: 11, maxWidth: 90, expectLines: 2, label: 'one over → wrap (11*9=99 > 90)' },
+      { chars: 9, maxWidth: 150, expectLines: 1, label: 'one under exact (9*15=135 < 150)' },
+      { chars: 10, maxWidth: 150, expectLines: 1, label: 'fits exactly (10*15=150 = maxWidth)' },
+      { chars: 11, maxWidth: 150, expectLines: 2, label: 'one over → wrap (11*15=165 > 150)' },
     ])('$label', ({ chars, maxWidth, expectLines }) => {
       const text = 'x'.repeat(chars);
       const r = measureText({ text, size: 'm', maxWidth, padding });
@@ -46,10 +46,10 @@ describe('measureText boundary cases', () => {
 
   describe('size variants (s/m/l/xl)', () => {
     it.each([
-      { size: 's' as const, charW: 7, lineH: 18 },
-      { size: 'm' as const, charW: 9, lineH: 28 },
-      { size: 'l' as const, charW: 13, lineH: 40 },
-      { size: 'xl' as const, charW: 19, lineH: 56 },
+      { size: 's' as const, charW: 11, lineH: 18 },
+      { size: 'm' as const, charW: 15, lineH: 28 },
+      { size: 'l' as const, charW: 22, lineH: 40 },
+      { size: 'xl' as const, charW: 32, lineH: 56 },
     ])('size $size: width grows ~ charW=$charW', ({ size, charW }) => {
       const r = measureText({ text: 'xxxxx', size, padding: 0 });
       expect(r.w).toBe(5 * charW);
@@ -67,24 +67,24 @@ describe('measureText boundary cases', () => {
   describe('unicode / multi-byte', () => {
     it('counts code points (not bytes) — short Chinese string', () => {
       const r = measureText({ text: '你好', size: 'm', padding: 0 });
-      // 2 chars × 9 = 18 (treated like 2 ASCII chars; this is heuristic)
-      expect(r.w).toBe(18);
+      // 2 chars × 15 = 30 (treated like 2 ASCII chars; this is heuristic)
+      expect(r.w).toBe(30);
       expect(r.lines).toBe(1);
     });
 
     it('emoji counts as JS code units (which over-counts surrogate pairs)', () => {
       const r = measureText({ text: '👋', size: 'm', padding: 0 });
       // surrogate pair = 2 code units. heuristic over-counts.
-      expect(r.w).toBe(18);
+      expect(r.w).toBe(30);
     });
   });
 
   describe('long-word break boundary', () => {
     it.each([
-      { len: 10, maxWidth: 90, expectLines: 1, label: 'fits exactly at boundary' },
-      { len: 11, maxWidth: 90, expectLines: 2, label: 'one over breaks' },
-      { len: 20, maxWidth: 90, expectLines: 2, label: 'two-segment break' },
-      { len: 21, maxWidth: 90, expectLines: 3, label: 'three-segment break' },
+      { len: 10, maxWidth: 150, expectLines: 1, label: 'fits exactly at boundary' },
+      { len: 11, maxWidth: 150, expectLines: 2, label: 'one over breaks' },
+      { len: 20, maxWidth: 150, expectLines: 2, label: 'two-segment break' },
+      { len: 21, maxWidth: 150, expectLines: 3, label: 'three-segment break' },
     ])('$label (len=$len)', ({ len, maxWidth, expectLines }) => {
       const text = 'x'.repeat(len);
       const r = measureText({ text, size: 'm', maxWidth, padding: 0 });

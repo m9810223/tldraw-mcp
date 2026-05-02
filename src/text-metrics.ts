@@ -1,10 +1,14 @@
 import type { TLRecord } from './store.js';
 
+// Calibrated against tldraw's "draw" handwriting font (Caveat). Values err on the
+// generous side so single-word boxes never get hard-wrapped: a too-narrow box would
+// truncate a word like "User" → "Us / er", whereas a slightly oversized box just
+// shows extra padding.
 const SIZE_METRICS: Record<'s' | 'm' | 'l' | 'xl', { charWidth: number; lineHeight: number }> = {
-  s: { charWidth: 7, lineHeight: 18 },
-  m: { charWidth: 9, lineHeight: 28 },
-  l: { charWidth: 13, lineHeight: 40 },
-  xl: { charWidth: 19, lineHeight: 56 },
+  s: { charWidth: 11, lineHeight: 18 },
+  m: { charWidth: 15, lineHeight: 28 },
+  l: { charWidth: 22, lineHeight: 40 },
+  xl: { charWidth: 32, lineHeight: 56 },
 };
 
 export function extractText(shape: TLRecord): string {
@@ -65,6 +69,7 @@ function wrapLines(text: string, charWidth: number, maxLinePixels: number): stri
       continue;
     }
     const words = para.split(/(\s+)/);
+    const charsPerLine = Math.max(1, Math.floor(maxLinePixels / charWidth));
     let current = '';
     for (const word of words) {
       const candidate = current + word;
@@ -74,16 +79,14 @@ function wrapLines(text: string, charWidth: number, maxLinePixels: number): stri
       }
       if (current.length > 0) {
         out.push(current.trimEnd());
-        current = word.trimStart();
-      } else {
-        let chunk = word;
-        const charsPerLine = Math.max(1, Math.floor(maxLinePixels / charWidth));
-        while (chunk.length > charsPerLine) {
-          out.push(chunk.slice(0, charsPerLine));
-          chunk = chunk.slice(charsPerLine);
-        }
-        current = chunk;
+        current = '';
       }
+      let chunk = word.trimStart();
+      while (chunk.length > charsPerLine) {
+        out.push(chunk.slice(0, charsPerLine));
+        chunk = chunk.slice(charsPerLine);
+      }
+      current = chunk;
     }
     if (current.length > 0) out.push(current);
   }
