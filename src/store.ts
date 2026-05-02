@@ -77,6 +77,17 @@ export function bindingsForShape(file: TldrFile, shapeId: string): TLRecord[] {
   return bindingsOf(file).filter((b) => b.fromId === shapeId || b.toId === shapeId);
 }
 
+export function arrowBetween(file: TldrFile, aId: string, bId: string): TLRecord | undefined {
+  const bindings = bindingsOf(file);
+  const arrowsAtA = bindings.filter((b) => b.toId === aId);
+  for (const ba of arrowsAtA) {
+    const arrowId = ba.fromId as string;
+    const peerBinding = bindings.find((b) => b.fromId === arrowId && b.toId === bId && b.id !== ba.id);
+    if (peerBinding) return findShape(file, arrowId);
+  }
+  return undefined;
+}
+
 export function pageOfShape(file: TldrFile, shapeId: string): string | undefined {
   let cur: TLRecord | undefined = findShape(file, shapeId);
   const seen = new Set<string>();

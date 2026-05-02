@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   appendRecord,
+  arrowBetween,
   bindingsForShape,
   firstPageId,
   newId,
@@ -106,5 +107,46 @@ describe('store helpers', () => {
     expect(bindingsForShape(f, 'shape:rectA').map((b) => b.id)).toEqual(['binding:b1']);
     expect(bindingsForShape(f, 'shape:arrow1').map((b) => b.id)).toEqual(['binding:b1', 'binding:b2']);
     expect(bindingsForShape(f, 'shape:nope')).toEqual([]);
+  });
+
+  it('arrowBetween finds the arrow shape connecting two shapes via bindings', () => {
+    let f = file();
+    f = appendRecord(f, {
+      typeName: 'shape',
+      id: 'shape:arrow1',
+      type: 'arrow',
+      parentId: 'page:page',
+      index: 'a1',
+      x: 0,
+      y: 0,
+      isLocked: false,
+      rotation: 0,
+      opacity: 1,
+      meta: {},
+      props: { text: 'flow' },
+    });
+    f = appendRecord(f, {
+      typeName: 'binding',
+      id: 'binding:b1',
+      type: 'arrow',
+      fromId: 'shape:arrow1',
+      toId: 'shape:rectA',
+      props: { terminal: 'start' },
+      meta: {},
+    });
+    f = appendRecord(f, {
+      typeName: 'binding',
+      id: 'binding:b2',
+      type: 'arrow',
+      fromId: 'shape:arrow1',
+      toId: 'shape:rectB',
+      props: { terminal: 'end' },
+      meta: {},
+    });
+
+    const arrow = arrowBetween(f, 'shape:rectA', 'shape:rectB');
+    expect(arrow?.id).toBe('shape:arrow1');
+
+    expect(arrowBetween(f, 'shape:rectA', 'shape:rectC')).toBeUndefined();
   });
 });

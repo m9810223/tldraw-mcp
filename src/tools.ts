@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import { z } from 'zod';
 import {
   appendRecord,
+  arrowBetween,
   bindingsForShape,
   findShape,
   firstPageId,
@@ -537,6 +538,11 @@ export const autoLayoutSchema = z.object({
   gap: z.number().nonnegative().default(40),
   startX: z.number().optional().describe('Defaults to the first shape\'s current x'),
   startY: z.number().optional().describe('Defaults to the first shape\'s current y'),
+  fitArrowLabels: z
+    .boolean()
+    .default(false)
+    .describe('When true, widen the gap between consecutive shapes whose connecting arrow has a non-empty text label, so the label has room.'),
+  labelPadding: z.number().nonnegative().default(20),
 });
 
 export async function autoLayout(args: z.infer<typeof autoLayoutSchema>) {
@@ -546,21 +552,35 @@ export async function autoLayout(args: z.infer<typeof autoLayoutSchema>) {
 
     let x = args.startX ?? items[0].x;
     let y = args.startY ?? items[0].y;
-    const positions: { id: string; x: number; y: number }[] = [];
+    const positions: { id: string; x: number; y: number; gapAfter?: number }[] = [];
 
-    for (const item of items) {
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
       item.x = x;
       item.y = y;
-      positions.push({ id: item.id, x, y });
-      if (args.direction === 'horizontal') x += item.w + args.gap;
-      else y += item.h + args.gap;
+
+      let gap = args.gap;
+      if (args.fitArrowLabels && i < items.length - 1) {
+        const next = items[i + 1];
+        const arrow = arrowBetween(file, item.id, next.id);
+        const label = (arrow?.props as { text?: string } | undefined)?.text;
+        if (label) {
+          const m = measureText({ text: label, size: 'm', padding: 0 });
+          const span = args.direction === 'horizontal' ? m.w : m.h;
+          gap = Math.max(args.gap, span + args.labelPadding * 2);
+        }
+      }
+
+      positions.push({ id: item.id, x, y, gapAfter: i < items.length - 1 ? gap : undefined });
+      if (args.direction === 'horizontal') x += item.w + gap;
+      else y += item.h + gap;
 
       const updated = { ...item.shape, x: item.x, y: item.y };
       validateShape(updated);
       file = replaceRecord(file, updated);
     }
     await saveFile(args.file, file);
-    return { positions, direction: args.direction, gap: args.gap };
+    return { positions, direction: args.direction };
   });
 }
 
@@ -576,12 +596,19 @@ export async function fitToText(args: z.infer<typeof fitToTextSchema>) {
     const file = await loadFile(args.file);
     const shape = findShape(file, args.id);
     if (!shape) throw new Error(`Shape not found: ${args.id}`);
-    if (shape.type !== 'geo' && shape.type !== 'text') {
-      throw new Error(`fit_to_text only supports geo and text shapes (got ${shape.type})`);
+    if (shape.type !== 'geo' && shape.type !== 'text' && shape.type !== 'arrow') {
+      throw new Error(`fit_to_text only supports geo, text, and arrow shapes (got ${shape.type})`);
     }
 
     const text = extractText(shape);
-    if (!text) return { id: args.id, w: shape.props && (shape.props as { w?: number }).w, h: shape.props && (shape.props as { h?: number }).h, skipped: 'no text' as const };
+    if (!text) {
+      return {
+        id: args.id,
+        w: (shape.props as { w?: number } | undefined)?.w,
+        h: (shape.props as { h?: number } | undefined)?.h,
+        skipped: 'no text' as const,
+      };
+    }
 
     const props = shape.props as { size?: 's' | 'm' | 'l' | 'xl'; scale?: number };
     const fit = measureText({
@@ -591,6 +618,16 @@ export async function fitToText(args: z.infer<typeof fitToTextSchema>) {
       maxWidth: args.maxWidth,
       padding: args.padding,
     });
+
+    if (shape.type === 'arrow') {
+      return {
+        id: args.id,
+        w: fit.w,
+        h: fit.h,
+        lines: fit.lines,
+        advisory: 'arrow has no w/h; use auto_layout({fitArrowLabels: true}) to space connected shapes for the label',
+      };
+    }
 
     const updated: TLRecord = {
       ...shape,

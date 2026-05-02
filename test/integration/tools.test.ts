@@ -238,11 +238,30 @@ describe('tools integration', () => {
     expect(narrow.lines).toBeGreaterThan(wide.lines);
   });
 
-  it('fit_to_text rejects unsupported shape types', async () => {
+  it('fit_to_text on arrow returns measurement with advisory (no mutation)', async () => {
     const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
     const b = await createRect({ file: ctx.file, x: 200, y: 0, w: 50, h: 50 });
-    const arrow = await connect({ file: ctx.file, fromId: a.id, toId: b.id });
-    await expect(fitToText({ file: ctx.file, id: arrow.arrowId })).rejects.toThrow(/only supports/);
+    const arrow = await connect({ file: ctx.file, fromId: a.id, toId: b.id, text: 'flows to' });
+
+    const result = await fitToText({ file: ctx.file, id: arrow.arrowId });
+    expect(result.w).toBeGreaterThan(0);
+    expect(result.advisory).toMatch(/auto_layout/);
+
+    const arrowShape = await getShape({ file: ctx.file, id: arrow.arrowId });
+    expect((arrowShape.props as { text: string }).text).toBe('flows to');
+  });
+
+  it('fit_to_text rejects shapes with no text capability', async () => {
+    const { id } = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    await updateShape({
+      file: ctx.file,
+      id,
+      patch: {
+        // pretend it's a frame for testing the rejection — easier: just test on group
+      },
+    });
+    const { groupId } = await createGroup({ file: ctx.file, childIds: [id] });
+    await expect(fitToText({ file: ctx.file, id: groupId })).rejects.toThrow(/only supports/);
   });
 
   it('align left puts every shape at the leftmost x', async () => {
@@ -289,9 +308,9 @@ describe('tools integration', () => {
       startX: 0,
       startY: 0,
     });
-    expect(r.positions[0]).toEqual({ id: a.id, x: 0, y: 0 });
-    expect(r.positions[1]).toEqual({ id: b.id, x: 120, y: 0 }); // 0 + 100 + 20
-    expect(r.positions[2]).toEqual({ id: c.id, x: 220, y: 0 }); // 120 + 80 + 20
+    expect(r.positions[0]).toMatchObject({ id: a.id, x: 0, y: 0 });
+    expect(r.positions[1]).toMatchObject({ id: b.id, x: 120, y: 0 }); // 0 + 100 + 20
+    expect(r.positions[2]).toMatchObject({ id: c.id, x: 220, y: 0 }); // 120 + 80 + 20
   });
 
   it('auto_layout rejects shapes without measurable bounds', async () => {
@@ -301,6 +320,47 @@ describe('tools integration', () => {
     await expect(
       autoLayout({ file: ctx.file, ids: [a.id, arrow.arrowId], direction: 'horizontal', gap: 10 }),
     ).rejects.toThrow(/measurable/);
+  });
+
+  it('auto_layout fitArrowLabels widens gap when an arrow label connects two shapes', async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 100, h: 50 });
+    const b = await createRect({ file: ctx.file, x: 0, y: 0, w: 100, h: 50 });
+    const c = await createRect({ file: ctx.file, x: 0, y: 0, w: 100, h: 50 });
+    await connect({
+      file: ctx.file,
+      fromId: a.id,
+      toId: b.id,
+      text: 'this is a sufficiently long label',
+    });
+
+    const baseline = await autoLayout({
+      file: ctx.file,
+      ids: [a.id, b.id, c.id],
+      direction: 'horizontal',
+      gap: 20,
+      startX: 0,
+      startY: 0,
+      fitArrowLabels: false,
+      labelPadding: 20,
+    });
+    const widened = await autoLayout({
+      file: ctx.file,
+      ids: [a.id, b.id, c.id],
+      direction: 'horizontal',
+      gap: 20,
+      startX: 0,
+      startY: 0,
+      fitArrowLabels: true,
+      labelPadding: 20,
+    });
+
+    const baselineGapAB = (baseline.positions[1].x as number) - (baseline.positions[0].x as number);
+    const widenedGapAB = (widened.positions[1].x as number) - (widened.positions[0].x as number);
+    const baselineGapBC = (baseline.positions[2].x as number) - (baseline.positions[1].x as number);
+    const widenedGapBC = (widened.positions[2].x as number) - (widened.positions[1].x as number);
+
+    expect(widenedGapAB).toBeGreaterThan(baselineGapAB);
+    expect(widenedGapBC).toBe(baselineGapBC); // no arrow B→C, gap unchanged
   });
 });
 
