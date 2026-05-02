@@ -24,7 +24,7 @@ import { runJq } from './jq.js';
 import { emptyTldrFile } from './template.js';
 import { collectGraph, runDagre } from './graph-layout.js';
 import { bendValuesFor, getArrowEndpoints, groupOverlappingArrows, sortByPriority } from './arrow-bending.js';
-import { extractText, measureText, safeArrowLabel } from './text-metrics.js';
+import { extractText, measureText } from './text-metrics.js';
 import { validateBinding, validateShape } from './validate.js';
 
 const FilePath = z.string().describe('Absolute path to a .tldr file');
@@ -782,10 +782,6 @@ export const polishLayoutSchema = z.object({
   file: FilePath,
   direction: z.enum(['LR', 'TB', 'RL', 'BT']).default('LR'),
   padding: z.number().nonnegative().default(16).describe('Padding for fit_to_text on each node'),
-  relabelArrows: z
-    .boolean()
-    .default(false)
-    .describe('When true, force newlines between words on long arrow labels so tldraw never hard-breaks mid-word. Off by default — leaves user-provided arrow text untouched.'),
 });
 
 export async function polishLayout(args: z.infer<typeof polishLayoutSchema>) {
@@ -793,21 +789,8 @@ export async function polishLayout(args: z.infer<typeof polishLayoutSchema>) {
     let file = await loadFile(args.file);
 
     const fitted: { id: string; w: number; h: number }[] = [];
-    let relabeled = 0;
     for (const shape of shapesOf(file)) {
       const type = shape.type as string;
-      if (type === 'arrow') {
-        if (!args.relabelArrows) continue;
-        const props = shape.props as { text?: string };
-        const safe = safeArrowLabel(props.text ?? '');
-        if (safe !== props.text) {
-          const updated: TLRecord = { ...shape, props: { ...(shape.props as object), text: safe } };
-          validateShape(updated);
-          file = replaceRecord(file, updated);
-          relabeled += 1;
-        }
-        continue;
-      }
       if (type !== 'geo' && type !== 'text') continue;
       const text = extractText(shape);
       if (!text) continue;
@@ -843,7 +826,6 @@ export async function polishLayout(args: z.infer<typeof polishLayoutSchema>) {
     await saveFile(args.file, layout.file);
     return {
       fit: fitted.length,
-      relabeledArrows: relabeled,
       placed: layout.placed.length,
       direction: args.direction,
       nodes: layout.nodes,

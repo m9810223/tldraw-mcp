@@ -22,17 +22,17 @@ Restart Claude Code. `/mcp` should now list `tldraw-m9810223`.
 **2. Try the demo prompt** in Claude Code:
 
 ```md
-Draw the **OAuth 2.0 Authorization Code Flow** with MCP `tldraw-m9810223`. Save to `./oauth.tldr`.
+Recreate this diagram with MCP `tldraw-m9810223`, save to `./demo.tldr`:
+https://nickkossolapov.github.io/fame-boy/building-a-game-boy-emulator-in-fsharp/images/architecture.svg
 
-- 4 nodes: `User`, `Client`, `Auth Server`, `Resource Server`
-- Label every arrow with a step number and the action (e.g. `1. /authorize`, `7. POST /token`)
-- Finish with `polish_layout(direction="LR")` so boxes hug their text and arrows lay out cleanly
+- Match the nodes, arrows, and labels from the source
+- Polish the result at the end
 ```
 
-**3. View the result** — drop `./oauth.tldr` onto [tldraw.com](https://tldraw.com), or use the [tldraw VS Code extension](https://marketplace.visualstudio.com/items?itemName=tldraw-org.tldraw-vscode) for live preview.
+**3. View the result** — drop `./demo.tldr` onto [tldraw.com](https://tldraw.com), or use the [tldraw VS Code extension](https://marketplace.visualstudio.com/items?itemName=tldraw-org.tldraw-vscode) for live preview.
 
 <!-- TODO: replace with screenshot -->
-<!-- ![OAuth 2.0 Authorization Code Flow drawn by tldraw-mcp](docs/oauth-demo.png) -->
+<!-- ![Game Boy hardware architecture recreated by tldraw-mcp](docs/demo.png) -->
 
 ## Tools
 
