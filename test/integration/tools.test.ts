@@ -18,6 +18,7 @@ import {
   listShapes,
   measureArrowLabels,
   moveToPage,
+  polishLayout,
   searchApi,
   ungroup,
   updateShape,
@@ -520,6 +521,33 @@ describe('tools integration', () => {
     // ab1 (A→B) and ab2 (B→A) are reversed in direction → same raw bend = opposite sides
     expect(bend1).toBe(bend2);
     expect(Math.abs(bend1)).toBe(30);
+  });
+
+  it('polish_layout fits each node, lays out the graph, and is idempotent', async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50, text: 'Hello world' });
+    const b = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50, text: 'World' });
+    await connect({ file: ctx.file, fromId: a.id, toId: b.id });
+
+    const r1 = await polishLayout({ file: ctx.file, direction: 'LR', padding: 16 });
+    expect(r1.fit).toBe(2);
+    expect(r1.placed).toBe(2);
+
+    const f1 = await loadFile(ctx.file);
+    const aShape1 = f1.records.find((r) => r.id === a.id)!;
+    const w1 = (aShape1.props as { w: number }).w;
+    expect(w1).toBeGreaterThan(50); // 'Hello world' should expand the original 50px box
+
+    const r2 = await polishLayout({ file: ctx.file, direction: 'LR', padding: 16 });
+    expect(r2.fit).toBe(2);
+    expect(r2.placed).toBe(2);
+    const f2 = await loadFile(ctx.file);
+    expect((f2.records.find((r) => r.id === a.id)!.props as { w: number }).w).toBe(w1);
+  });
+
+  it('polish_layout on an empty file returns zero counts (no throw)', async () => {
+    const r = await polishLayout({ file: ctx.file, direction: 'LR', padding: 16 });
+    expect(r.fit).toBe(0);
+    expect(r.placed).toBe(0);
   });
 });
 

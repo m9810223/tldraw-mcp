@@ -27,6 +27,8 @@ import {
   graphLayoutSchema,
   measureArrowLabels,
   measureArrowLabelsSchema,
+  polishLayout,
+  polishLayoutSchema,
   createPage,
   createPageSchema,
   listPages,
@@ -144,6 +146,11 @@ const tools = {
     description: 'Detect arrows sharing the same shape pair (parallel edges = visual overlap) and spread their props.bend symmetrically. Pass priority[] to keep important arrows straight; unlisted ones fall back to drawing order. graph_layout already calls this with default amount=30.',
     schema: bendOverlappingArrowsSchema,
     handler: bendOverlappingArrows,
+  },
+  polish_layout: {
+    description: 'One-shot polish for a fresh diagram: fit_to_text on every text-bearing geo/text shape, then graph_layout (which already auto-bends overlapping arrows). Use as the last step after creating shapes/connections.',
+    schema: polishLayoutSchema,
+    handler: polishLayout,
   },
   create_page: {
     description: 'Create a new page in the document. Returns the new page id.',

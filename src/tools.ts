@@ -656,47 +656,64 @@ export const graphLayoutSchema = z.object({
   startY: z.number().default(0),
 });
 
+function applyGraphLayout(
+  file: TldrFile,
+  args: {
+    ids?: string[];
+    direction: 'LR' | 'TB' | 'RL' | 'BT';
+    nodeGap: number;
+    rankGap: number;
+    labelPadding: number;
+    startX: number;
+    startY: number;
+  },
+): { file: TldrFile; placed: { id: string; x: number; y: number }[]; nodes: number; edges: number } {
+  const { nodes, edges } = collectGraph(file, args.ids);
+  if (nodes.length === 0) return { file, placed: [], nodes: 0, edges: edges.length };
+
+  const positions = runDagre({
+    nodes,
+    edges,
+    direction: args.direction,
+    nodeGap: args.nodeGap,
+    rankGap: args.rankGap,
+    labelPadding: args.labelPadding,
+  });
+
+  const minX = Math.min(...[...positions.values()].map((p) => p.x));
+  const minY = Math.min(...[...positions.values()].map((p) => p.y));
+  const offsetX = args.startX - minX;
+  const offsetY = args.startY - minY;
+
+  const placed: { id: string; x: number; y: number }[] = [];
+  for (const [id, pos] of positions) {
+    const shape = findShape(file, id);
+    if (!shape) continue;
+    const x = pos.x + offsetX;
+    const y = pos.y + offsetY;
+    const updated = { ...shape, x, y };
+    validateShape(updated);
+    file = replaceRecord(file, updated);
+    placed.push({ id, x, y });
+  }
+
+  file = applyBendsToOverlappingArrows(file, undefined, 30);
+  return { file, placed, nodes: nodes.length, edges: edges.length };
+}
+
 export async function graphLayout(args: z.infer<typeof graphLayoutSchema>) {
   return withFileLock(args.file, async () => {
-    let file = await loadFile(args.file);
-    const { nodes, edges } = collectGraph(file, args.ids);
-    if (nodes.length === 0) {
+    const file = await loadFile(args.file);
+    const result = applyGraphLayout(file, args);
+    if (result.nodes === 0) {
       throw new Error('graph_layout: no measurable shapes to lay out');
     }
-
-    const positions = runDagre({
-      nodes,
-      edges,
-      direction: args.direction,
-      nodeGap: args.nodeGap,
-      rankGap: args.rankGap,
-      labelPadding: args.labelPadding,
-    });
-
-    const minX = Math.min(...[...positions.values()].map((p) => p.x));
-    const minY = Math.min(...[...positions.values()].map((p) => p.y));
-    const offsetX = args.startX - minX;
-    const offsetY = args.startY - minY;
-
-    const placed: { id: string; x: number; y: number }[] = [];
-    for (const [id, pos] of positions) {
-      const shape = findShape(file, id);
-      if (!shape) continue;
-      const x = pos.x + offsetX;
-      const y = pos.y + offsetY;
-      const updated = { ...shape, x, y };
-      validateShape(updated);
-      file = replaceRecord(file, updated);
-      placed.push({ id, x, y });
-    }
-
-    file = applyBendsToOverlappingArrows(file, undefined, 30);
-    await saveFile(args.file, file);
+    await saveFile(args.file, result.file);
     return {
-      placed,
+      placed: result.placed,
       direction: args.direction,
-      nodes: nodes.length,
-      edges: edges.length,
+      nodes: result.nodes,
+      edges: result.edges,
     };
   });
 }
@@ -758,6 +775,62 @@ export async function bendOverlappingArrows(args: z.infer<typeof bendOverlapping
       }),
     );
     return { groups: groups.length, updated: summary };
+  });
+}
+
+export const polishLayoutSchema = z.object({
+  file: FilePath,
+  direction: z.enum(['LR', 'TB', 'RL', 'BT']).default('LR'),
+  padding: z.number().nonnegative().default(16).describe('Padding for fit_to_text on each node'),
+});
+
+export async function polishLayout(args: z.infer<typeof polishLayoutSchema>) {
+  return withFileLock(args.file, async () => {
+    let file = await loadFile(args.file);
+
+    const fitted: { id: string; w: number; h: number }[] = [];
+    for (const shape of shapesOf(file)) {
+      const type = shape.type as string;
+      if (type !== 'geo' && type !== 'text') continue;
+      const text = extractText(shape);
+      if (!text) continue;
+      const props = shape.props as { size?: 's' | 'm' | 'l' | 'xl'; scale?: number };
+      const fit = measureText({
+        text,
+        size: props.size,
+        scale: props.scale,
+        padding: args.padding,
+      });
+      const updated: TLRecord = {
+        ...shape,
+        props: {
+          ...(shape.props as object),
+          w: fit.w,
+          ...(type === 'geo' ? { h: fit.h } : {}),
+        },
+      };
+      validateShape(updated);
+      file = replaceRecord(file, updated);
+      fitted.push({ id: shape.id as string, w: fit.w, h: fit.h });
+    }
+
+    const layout = applyGraphLayout(file, {
+      direction: args.direction,
+      nodeGap: 60,
+      rankGap: 120,
+      labelPadding: 20,
+      startX: 0,
+      startY: 0,
+    });
+
+    await saveFile(args.file, layout.file);
+    return {
+      fit: fitted.length,
+      placed: layout.placed.length,
+      direction: args.direction,
+      nodes: layout.nodes,
+      edges: layout.edges,
+    };
   });
 }
 

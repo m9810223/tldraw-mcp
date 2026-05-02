@@ -26,8 +26,7 @@ Draw the **OAuth 2.0 Authorization Code Flow** with MCP `tldraw-m9810223`. Save 
 
 - 4 nodes: `User`, `Client`, `Auth Server`, `Resource Server`
 - Label every arrow with a step number and the action (e.g. `1. /authorize`, `7. POST /token`)
-- Lay out with `graph_layout(direction="LR")`
-- Finally use the layout / text-fitting tools so boxes hug their text
+- Finish with `polish_layout(direction="LR")` so boxes hug their text and arrows lay out cleanly
 ```
 
 **3. View the result** — drop `./oauth.tldr` onto [tldraw.com](https://tldraw.com), or use the [tldraw VS Code extension](https://marketplace.visualstudio.com/items?itemName=tldraw-org.tldraw-vscode) for live preview.
@@ -71,6 +70,7 @@ Draw the **OAuth 2.0 Authorization Code Flow** with MCP `tldraw-m9810223`. Save 
 | `graph_layout`         | Dagre layout for arrow-connected shapes (best for non-chain topologies) |
 | `measure_arrow_labels` | Report label sizes + endpoint distances for labeled arrows              |
 | `bend_overlapping_arrows` | Bend parallel arrows (same shape pair) symmetrically; `priority[]` keeps important arrows straight. `graph_layout` calls this automatically. |
+| `polish_layout`        | One-shot finisher: `fit_to_text` every node + `graph_layout` (auto-bends arrows). Use as the last step after building a fresh diagram. |
 
 ### Discovery & escape hatch
 
@@ -103,7 +103,7 @@ claude mcp remove tldraw-m9810223 2>/dev/null; rm -rf ~/.npm/_npx
 claude mcp add tldraw-m9810223 -- npx -y github:m9810223/tldraw-mcp
 ```
 
-The first arg (`tldraw-m9810223`) is the local server name — pick whatever you like, then refer to it the same way in subsequent commands. Restart Claude Code, then `/mcp` lists it with 25 tools.
+The first arg (`tldraw-m9810223`) is the local server name — pick whatever you like, then refer to it the same way in subsequent commands. Restart Claude Code, then `/mcp` lists it with 26 tools.
 
 ## Wire up to other MCP clients
 
@@ -141,7 +141,7 @@ The Cloudflare-hosted official MCP exposes only `search` + `exec` (run any JS in
 | ------------ | ----------------------------------- | ------------------------------------------------------------------- |
 | Transport    | streamable-http + sse (Cloudflare)  | stdio (works in Claude Code directly)                               |
 | Runtime      | Real tldraw Editor in widget iframe | Pure Node, edits raw JSON                                           |
-| Tools        | 2 (`search`, `exec`) + checkpoints  | 25: file/page (4) + shape (9) + layout (7) + discovery (2) + ckpt (3) |
+| Tools        | 2 (`search`, `exec`) + checkpoints  | 26: file/page (4) + shape (9) + layout (8) + discovery (2) + ckpt (3) |
 | Live preview | Yes (widget iframe)                 | No (open the file in tldraw to view)                                |
 | Coverage     | Whole Editor API                    | Geo / text / arrow + jq escape hatch                                |
 
@@ -170,7 +170,7 @@ src/
 
 test/
   unit/          store + validate + text-metrics + arrow-bending (34 tests)
-  integration/   tools end-to-end on tmp .tldr (36 tests)
+  integration/   tools end-to-end on tmp .tldr (39 tests)
   contract/      loadStoreSnapshot against real @tldraw/store (4 tests)
   boundary/      N-1 / N / N+1 limits + concurrent writes (89 tests)
 ```
