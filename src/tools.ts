@@ -21,6 +21,7 @@ import { makeArrowBinding, makeArrowShape, makeGeoShape, makeGroupShape, makeTex
 import { listCheckpoints, restoreCheckpoint, saveCheckpoint } from './checkpoint.js';
 import { runJq } from './jq.js';
 import { emptyTldrFile } from './template.js';
+import { extractText, measureText } from './text-metrics.js';
 import { validateBinding, validateShape } from './validate.js';
 
 const FilePath = z.string().describe('Absolute path to a .tldr file');
@@ -33,26 +34,40 @@ export const createRectSchema = z.object({
   h: z.number().positive(),
   text: z.string().optional(),
   color: z.string().optional(),
+  autoFit: z
+    .boolean()
+    .default(false)
+    .describe('If true and text is set, ignore w/h and size the rect to fit the text (heuristic).'),
+  size: z.enum(['s', 'm', 'l', 'xl']).optional(),
 });
 
 export async function createRect(args: z.infer<typeof createRectSchema>) {
   return withFileLock(args.file, async () => {
     const file = await loadFile(args.file);
     const id = newId('shape');
+
+    let { w, h } = args;
+    if (args.autoFit && args.text) {
+      const fit = measureText({ text: args.text, size: args.size });
+      w = fit.w;
+      h = fit.h;
+    }
+
     const shape = makeGeoShape({
       id,
       parentId: firstPageId(file),
       index: nextIndex(file),
       x: args.x,
       y: args.y,
-      w: args.w,
-      h: args.h,
+      w,
+      h,
       text: args.text,
       color: args.color,
+      size: args.size,
     });
     validateShape(shape);
     await saveFile(args.file, appendRecord(file, shape));
-    return { id };
+    return { id, w, h };
   });
 }
 
@@ -390,6 +405,44 @@ export async function execJq(args: z.infer<typeof execJqSchema>) {
     await saveCheckpoint(args.file, 'pre_exec_jq');
     await fs.writeFile(args.file, stdout);
     return { written: true, stderr: stderr || undefined };
+  });
+}
+
+export const fitToTextSchema = z.object({
+  file: FilePath,
+  id: z.string(),
+  maxWidth: z.number().positive().optional().describe('Wrap text at this width before measuring; default = no wrap'),
+  padding: z.number().nonnegative().default(16),
+});
+
+export async function fitToText(args: z.infer<typeof fitToTextSchema>) {
+  return withFileLock(args.file, async () => {
+    const file = await loadFile(args.file);
+    const shape = findShape(file, args.id);
+    if (!shape) throw new Error(`Shape not found: ${args.id}`);
+    if (shape.type !== 'geo' && shape.type !== 'text') {
+      throw new Error(`fit_to_text only supports geo and text shapes (got ${shape.type})`);
+    }
+
+    const text = extractText(shape);
+    if (!text) return { id: args.id, w: shape.props && (shape.props as { w?: number }).w, h: shape.props && (shape.props as { h?: number }).h, skipped: 'no text' as const };
+
+    const props = shape.props as { size?: 's' | 'm' | 'l' | 'xl'; scale?: number };
+    const fit = measureText({
+      text,
+      size: props.size,
+      scale: props.scale,
+      maxWidth: args.maxWidth,
+      padding: args.padding,
+    });
+
+    const updated: TLRecord = {
+      ...shape,
+      props: { ...(shape.props as object), w: fit.w, ...(shape.type === 'geo' ? { h: fit.h } : {}) },
+    };
+    validateShape(updated);
+    await saveFile(args.file, replaceRecord(file, updated));
+    return { id: args.id, w: fit.w, h: fit.h, lines: fit.lines };
   });
 }
 

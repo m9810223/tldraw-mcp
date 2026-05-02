@@ -13,6 +13,8 @@ import {
   createEmptyFileSchema,
   createGroup,
   createGroupSchema,
+  fitToText,
+  fitToTextSchema,
   createPage,
   createPageSchema,
   listPages,
@@ -95,6 +97,11 @@ const tools = {
     description: 'Dissolve a group: reparent its children to the group\'s parent and delete the group shape.',
     schema: ungroupSchema,
     handler: ungroup,
+  },
+  fit_to_text: {
+    description: 'Resize a geo or text shape to fit its current text content (heuristic measurement). Pass maxWidth to wrap.',
+    schema: fitToTextSchema,
+    handler: fitToText,
   },
   create_page: {
     description: 'Create a new page in the document. Returns the new page id.',

@@ -7,6 +7,7 @@ import {
   createText,
   deleteShape,
   execJq,
+  fitToText,
   getShape,
   listPages,
   listShapes,
@@ -180,6 +181,65 @@ describe('tools integration', () => {
     await execJq({ file: ctx.file, filter: '.records | length', write: false });
     const after = await loadFile(ctx.file);
     expect(JSON.stringify(after)).toBe(JSON.stringify(before));
+  });
+
+  it('create_rect autoFit sizes the rect to its text', async () => {
+    const tiny = await createRect({
+      file: ctx.file,
+      x: 0,
+      y: 0,
+      w: 10,
+      h: 10,
+      text: 'short',
+      autoFit: true,
+    });
+    const long = await createRect({
+      file: ctx.file,
+      x: 0,
+      y: 0,
+      w: 10,
+      h: 10,
+      text: 'a much longer label that needs more room',
+      autoFit: true,
+    });
+    expect(long.w).toBeGreaterThan(tiny.w);
+  });
+
+  it('fit_to_text resizes an existing geo to fit overflowing text', async () => {
+    const { id } = await createRect({ file: ctx.file, x: 0, y: 0, w: 100, h: 50, text: 'tiny' });
+    await updateShape({
+      file: ctx.file,
+      id,
+      patch: { props: { richText: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'much longer label here' }] }] } } },
+    });
+
+    const result = await fitToText({ file: ctx.file, id, padding: 16 });
+    expect(result.w).toBeGreaterThan(100);
+
+    const shape = await getShape({ file: ctx.file, id });
+    expect((shape.props as { w: number }).w).toBe(result.w);
+  });
+
+  it('fit_to_text wraps when maxWidth is given', async () => {
+    const { id } = await createRect({
+      file: ctx.file,
+      x: 0,
+      y: 0,
+      w: 100,
+      h: 50,
+      text: 'one two three four five six seven eight nine ten',
+    });
+    const wide = await fitToText({ file: ctx.file, id });
+    const narrow = await fitToText({ file: ctx.file, id, maxWidth: 120 });
+    expect(narrow.h).toBeGreaterThan(wide.h);
+    expect(narrow.lines).toBeGreaterThan(wide.lines);
+  });
+
+  it('fit_to_text rejects unsupported shape types', async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    const b = await createRect({ file: ctx.file, x: 200, y: 0, w: 50, h: 50 });
+    const arrow = await connect({ file: ctx.file, fromId: a.id, toId: b.id });
+    await expect(fitToText({ file: ctx.file, id: arrow.arrowId })).rejects.toThrow(/only supports/);
   });
 });
 
