@@ -48,127 +48,20 @@ Working skeleton. Schema validation is wired (`@tldraw/tlschema` validators run 
 
 The token-saving design: tools take primitive args, return ids or `ok`. The full JSON only enters context when you call `get_shape` deliberately.
 
-## Install
+## Install / Update / Remove
 
 Requires **Node ≥ 20**. `jq` only needed for `exec_jq` (`brew install jq` / `apt-get install jq`).
 
 ```bash
-npx -y github:m9810223/tldraw-mcp                 # zero-install, recommended
-npx -y github:m9810223/tldraw-mcp#main             # pin branch / tag / commit
-npm install -g github:m9810223/tldraw-mcp          # global bin: `tldraw-mcp`
-npx -y git+ssh://git@github.com/m9810223/tldraw-mcp.git   # private over SSH
-```
-
-For dev: `git clone … && npm install && npm run build && node dist/index.js`. The `prepare` script auto-builds `dist/` after the git-source install.
-
-## Wire up to Claude Code
-
-`claude mcp add` (recommended). The `--` separator is required so `-y` is
-passed to `npx` instead of being parsed as a `claude mcp add` flag:
-
-```bash
+# Install (or reinstall after upstream changes)
+claude mcp remove tldraw 2>/dev/null; rm -rf ~/.npm/_npx
 claude mcp add tldraw -- npx -y github:m9810223/tldraw-mcp
-```
 
-Add `-s user` for global (all projects) or `-s project` for a `.mcp.json`
-checked into the repo. Default is `-s local` (this project, your machine).
-
-…or by editing `.mcp.json` (project) / `~/.claude.json` (user-global):
-
-```json
-{
-  "mcpServers": {
-    "tldraw": {
-      "command": "npx",
-      "args": ["-y", "github:m9810223/tldraw-mcp"]
-    }
-  }
-}
-```
-
-If you installed globally with Option 2:
-
-```json
-{
-  "mcpServers": {
-    "tldraw": { "command": "tldraw-mcp" }
-  }
-}
-```
-
-Restart Claude Code, then `/mcp` should list the `tldraw` server with 17 tools.
-
-## Removing the MCP server
-
-```bash
+# Remove
 claude mcp remove tldraw
 ```
 
-Adjust scope when you registered with a specific one — `claude mcp remove tldraw -s user` or `-s project`. List what's currently registered with `claude mcp list`.
-
-To also remove the npx cache so a fresh `claude mcp add` later re-clones:
-
-```bash
-rm -rf ~/.npm/_npx
-```
-
-If you used Option 2 (`npm install -g github:m9810223/tldraw-mcp`):
-
-```bash
-npm uninstall -g tldraw-mcp
-```
-
-## Forcing a reinstall (cache busting)
-
-`npx -y github:m9810223/tldraw-mcp` caches the clone under `~/.npm/_npx/`,
-so subsequent runs use the cached version even after upstream pushes new
-commits. Three ways to refresh:
-
-### Option A · Pin a specific commit / branch / tag
-
-```bash
-claude mcp remove tldraw
-claude mcp add tldraw -- npx -y github:m9810223/tldraw-mcp#main
-# or pin a commit / tag for reproducibility
-claude mcp add tldraw -- npx -y github:m9810223/tldraw-mcp#abc1234
-```
-
-`npx` treats `#<ref>` as part of the spec key, so a different ref always
-forces a fresh clone.
-
-### Option B · Wipe the npx cache (most aggressive)
-
-```bash
-rm -rf ~/.npm/_npx
-```
-
-Affects every `npx -y ...` cache, not just this project. Next call to any
-`npx` package will re-clone / re-download.
-
-### Option C · Clone locally and point at it
-
-When iterating on the MCP itself, skip `npx` entirely:
-
-```bash
-git clone https://github.com/m9810223/tldraw-mcp.git ~/tldraw-mcp
-cd ~/tldraw-mcp && npm install && npm run build
-
-claude mcp remove tldraw
-claude mcp add tldraw -- node ~/tldraw-mcp/dist/index.js
-```
-
-Now `git pull && npm run build` is enough to pick up changes — no cache
-involved.
-
-### Verifying which version is loaded
-
-```bash
-# Inspect the cached npx clone (commit hash)
-git -C ~/.npm/_npx/*/node_modules/tldraw-mcp log --oneline -3 2>/dev/null
-
-# Or check the live MCP server
-claude mcp list
-```
+Restart Claude Code, then `/mcp` lists `tldraw` with 17 tools.
 
 ## Wire up to other MCP clients
 
