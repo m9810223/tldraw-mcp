@@ -150,7 +150,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: Object.entries(tools).map(([name, t]) => ({
     name,
     description: t.description,
-    inputSchema: zodToJsonSchema(t.schema, { target: 'openApi3' }) as Record<string, unknown>,
+    inputSchema: zodToJsonSchema(t.schema, { target: 'jsonSchema7' }) as Record<string, unknown>,
   })),
 }));
 
