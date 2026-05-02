@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   align,
   autoLayout,
+  bendOverlappingArrows,
   connect,
   createGroup,
   createPage,
@@ -430,6 +431,81 @@ describe('tools integration', () => {
 
     expect(widenedGapAB).toBeGreaterThan(baselineGapAB);
     expect(widenedGapBC).toBe(baselineGapBC); // no arrow B→C, gap unchanged
+  });
+
+  it('bend_overlapping_arrows spreads parallel arrows symmetrically', async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    const b = await createRect({ file: ctx.file, x: 200, y: 0, w: 50, h: 50 });
+    const ab1 = await connect({ file: ctx.file, fromId: a.id, toId: b.id });
+    const ab2 = await connect({ file: ctx.file, fromId: b.id, toId: a.id });
+
+    const result = await bendOverlappingArrows({ file: ctx.file, amount: 30 });
+    expect(result.groups).toBe(1);
+    const f = await loadFile(ctx.file);
+    const arrow1 = f.records.find((r) => r.id === ab1.arrowId)!;
+    const arrow2 = f.records.find((r) => r.id === ab2.arrowId)!;
+    const bend1 = (arrow1.props as { bend: number }).bend;
+    const bend2 = (arrow2.props as { bend: number }).bend;
+    expect(bend1).toBe(-30);
+    expect(bend2).toBe(30);
+  });
+
+  it('bend_overlapping_arrows leaves single-edge arrows untouched', async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    const b = await createRect({ file: ctx.file, x: 200, y: 0, w: 50, h: 50 });
+    const c = await createRect({ file: ctx.file, x: 400, y: 0, w: 50, h: 50 });
+    await connect({ file: ctx.file, fromId: a.id, toId: b.id });
+    await connect({ file: ctx.file, fromId: b.id, toId: c.id });
+
+    const result = await bendOverlappingArrows({ file: ctx.file, amount: 30 });
+    expect(result.groups).toBe(0);
+    expect(result.updated).toEqual([]);
+  });
+
+  it('bend_overlapping_arrows honors priority — listed arrow stays straightest', async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    const b = await createRect({ file: ctx.file, x: 200, y: 0, w: 50, h: 50 });
+    const ab1 = await connect({ file: ctx.file, fromId: a.id, toId: b.id });
+    const ab2 = await connect({ file: ctx.file, fromId: a.id, toId: b.id });
+    const ab3 = await connect({ file: ctx.file, fromId: a.id, toId: b.id });
+
+    await bendOverlappingArrows({
+      file: ctx.file,
+      amount: 30,
+      priority: [ab2.arrowId], // ab2 → first → bend=-30 spread starts here? Actually first slot.
+    });
+    const f = await loadFile(ctx.file);
+    const bendOf = (id: string) =>
+      (f.records.find((r) => r.id === id)!.props as { bend: number }).bend;
+    // priority list rank: ab2=0; ab1, ab3 keep drawing order → indices 1,2
+    // sorted = [ab2, ab1, ab3]; bends = [-30, 0, 30]
+    expect(bendOf(ab2.arrowId)).toBe(-30);
+    expect(bendOf(ab1.arrowId)).toBe(0);
+    expect(bendOf(ab3.arrowId)).toBe(30);
+  });
+
+  it('graph_layout auto-bends parallel arrows', async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    const b = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    const ab1 = await connect({ file: ctx.file, fromId: a.id, toId: b.id });
+    const ab2 = await connect({ file: ctx.file, fromId: b.id, toId: a.id });
+
+    await graphLayout({
+      file: ctx.file,
+      direction: 'LR',
+      nodeGap: 60,
+      rankGap: 120,
+      labelPadding: 20,
+      startX: 0,
+      startY: 0,
+    });
+
+    const f = await loadFile(ctx.file);
+    const bend1 = (f.records.find((r) => r.id === ab1.arrowId)!.props as { bend: number }).bend;
+    const bend2 = (f.records.find((r) => r.id === ab2.arrowId)!.props as { bend: number }).bend;
+    expect(bend1).not.toBe(0);
+    expect(bend2).not.toBe(0);
+    expect(bend1 + bend2).toBe(0); // symmetric
   });
 });
 

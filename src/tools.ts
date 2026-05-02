@@ -23,6 +23,7 @@ import { listCheckpoints, restoreCheckpoint, saveCheckpoint } from './checkpoint
 import { runJq } from './jq.js';
 import { emptyTldrFile } from './template.js';
 import { collectGraph, runDagre } from './graph-layout.js';
+import { bendValuesFor, getArrowEndpoints, groupOverlappingArrows, sortByPriority } from './arrow-bending.js';
 import { extractText, measureText } from './text-metrics.js';
 import { validateBinding, validateShape } from './validate.js';
 
@@ -689,6 +690,7 @@ export async function graphLayout(args: z.infer<typeof graphLayoutSchema>) {
       placed.push({ id, x, y });
     }
 
+    file = applyBendsToOverlappingArrows(file, undefined, 30);
     await saveFile(args.file, file);
     return {
       placed,
@@ -696,6 +698,49 @@ export async function graphLayout(args: z.infer<typeof graphLayoutSchema>) {
       nodes: nodes.length,
       edges: edges.length,
     };
+  });
+}
+
+function applyBendsToOverlappingArrows(file: TldrFile, priority: string[] | undefined, amount: number): TldrFile {
+  const groups = groupOverlappingArrows(getArrowEndpoints(file));
+  for (const arrowIds of groups) {
+    const sorted = sortByPriority(arrowIds, priority);
+    const bends = bendValuesFor(sorted.length, amount);
+    for (let i = 0; i < sorted.length; i++) {
+      const arrow = findShape(file, sorted[i]);
+      if (!arrow) continue;
+      const merged: TLRecord = {
+        ...arrow,
+        props: { ...(arrow.props as object), bend: bends[i] },
+      };
+      validateShape(merged);
+      file = replaceRecord(file, merged);
+    }
+  }
+  return file;
+}
+
+export const bendOverlappingArrowsSchema = z.object({
+  file: FilePath,
+  amount: z.number().default(30).describe('Max bend in pixels; group is spread symmetrically across [-amount, +amount].'),
+  priority: z
+    .array(z.string())
+    .optional()
+    .describe('Arrow ids ordered most-important → least; the most-important stays straightest. Unlisted arrows fall back to drawing order.'),
+});
+
+export async function bendOverlappingArrows(args: z.infer<typeof bendOverlappingArrowsSchema>) {
+  return withFileLock(args.file, async () => {
+    const file = await loadFile(args.file);
+    const groups = groupOverlappingArrows(getArrowEndpoints(file));
+    const updated = applyBendsToOverlappingArrows(file, args.priority, args.amount);
+    await saveFile(args.file, updated);
+    const summary = groups.flatMap((arrowIds) => {
+      const sorted = sortByPriority(arrowIds, args.priority);
+      const bends = bendValuesFor(sorted.length, args.amount);
+      return sorted.map((id, i) => ({ id, bend: bends[i] }));
+    });
+    return { groups: groups.length, updated: summary };
   });
 }
 

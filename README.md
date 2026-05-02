@@ -6,6 +6,35 @@ Minimal MCP server for editing tldraw `.tldr` files via JSON manipulation. Headl
 
 Working skeleton. Schema validation is wired (`@tldraw/tlschema` validators run before every write), fractional indexing uses `@tldraw/utils`, file writes are guarded by `proper-lockfile`. Output verified end-to-end against the real tldraw runtime via `Store.loadStoreSnapshot()` in the contract test layer.
 
+## Quick Start
+
+Requires **Node ≥ 20**.
+
+**1. Install** (user scope — available in every project):
+
+```bash
+claude mcp remove tldraw-m9810223 -s user 2>/dev/null; rm -rf ~/.npm/_npx
+claude mcp add -s user tldraw-m9810223 -- npx -y github:m9810223/tldraw-mcp
+```
+
+Restart Claude Code. `/mcp` should now list `tldraw-m9810223`.
+
+**2. Try the demo prompt** in Claude Code:
+
+```md
+Draw the **OAuth 2.0 Authorization Code Flow** with MCP `tldraw-m9810223`. Save to `./oauth.tldr`.
+
+- 4 nodes: `User`, `Client`, `Auth Server`, `Resource Server`
+- Label every arrow with a step number and the action (e.g. `1. /authorize`, `7. POST /token`)
+- Lay out with `graph_layout(direction="LR")`
+- Finally call `fit_to_text` on every node so the boxes hug their text
+```
+
+**3. View the result** — drop `./oauth.tldr` onto [tldraw.com](https://tldraw.com), or use the [tldraw VS Code extension](https://marketplace.visualstudio.com/items?itemName=tldraw-org.tldraw-vscode) for live preview.
+
+<!-- TODO: replace with screenshot -->
+<!-- ![OAuth 2.0 Authorization Code Flow drawn by tldraw-mcp](docs/oauth-demo.png) -->
+
 ## Tools
 
 ### File / page lifecycle
@@ -31,7 +60,19 @@ Working skeleton. Schema validation is wired (`@tldraw/tlschema` validators run 
 | `update_shape` | Shallow-merge patch (use nested `{ "props": {...} }` for prop edits)            |
 | `delete_shape` | Delete by id; `cascade: true` (default) also removes attached arrows + bindings |
 
-### Discovery & escape hatch (inspired by official `tldraw-mcp-app`)
+### Layout / text fitting
+
+| Tool                   | What it does                                                            |
+| ---------------------- | ----------------------------------------------------------------------- |
+| `fit_to_text`          | Resize a geo/text shape to fit its current text content                 |
+| `align`                | Align shapes on an axis (left/right/top/bottom/center-x/center-y)       |
+| `distribute`           | Even-space shapes between the outermost two                             |
+| `auto_layout`          | Lay shapes out in a horizontal/vertical chain                           |
+| `graph_layout`         | Dagre layout for arrow-connected shapes (best for non-chain topologies) |
+| `measure_arrow_labels` | Report label sizes + endpoint distances for labeled arrows              |
+| `bend_overlapping_arrows` | Bend parallel arrows (same shape pair) symmetrically; `priority[]` keeps important arrows straight. `graph_layout` calls this automatically. |
+
+### Discovery & escape hatch
 
 | Tool         | What it does                                                                                                                                                                           | Token cost   |
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
@@ -50,7 +91,7 @@ The token-saving design: tools take primitive args, return ids or `ok`. The full
 
 ## Install / Update / Remove
 
-Requires **Node ≥ 20**. `jq` only needed for `exec_jq` (`brew install jq` / `apt-get install jq`).
+`jq` only needed for `exec_jq` (`brew install jq` / `apt-get install jq`).
 
 ```bash
 # Install — user scope: every project on this machine (recommended)
@@ -62,7 +103,7 @@ claude mcp remove tldraw-m9810223 2>/dev/null; rm -rf ~/.npm/_npx
 claude mcp add tldraw-m9810223 -- npx -y github:m9810223/tldraw-mcp
 ```
 
-The first arg (`tldraw-m9810223`) is the local server name — pick whatever you like, then refer to it the same way in subsequent commands. Restart Claude Code, then `/mcp` lists it with 22 tools.
+The first arg (`tldraw-m9810223`) is the local server name — pick whatever you like, then refer to it the same way in subsequent commands. Restart Claude Code, then `/mcp` lists it with 25 tools.
 
 ## Wire up to other MCP clients
 
@@ -100,14 +141,13 @@ The Cloudflare-hosted official MCP exposes only `search` + `exec` (run any JS in
 | ------------ | ----------------------------------- | ------------------------------------------------------------------- |
 | Transport    | streamable-http + sse (Cloudflare)  | stdio (works in Claude Code directly)                               |
 | Runtime      | Real tldraw Editor in widget iframe | Pure Node, edits raw JSON                                           |
-| Tools        | 2 (`search`, `exec`) + checkpoints  | 17: file/page lifecycle + 9 shape ops + search_api + exec_jq + ckpt |
+| Tools        | 2 (`search`, `exec`) + checkpoints  | 25: file/page (4) + shape (9) + layout (7) + discovery (2) + ckpt (3) |
 | Live preview | Yes (widget iframe)                 | No (open the file in tldraw to view)                                |
 | Coverage     | Whole Editor API                    | Geo / text / arrow + jq escape hatch                                |
 
 ## Known gaps
 
 - `index` (z-order) only supports appending above the current max — no insert-between
-- No alignment / distribution tools (use `update_shape` to set `x`/`y` directly, or `exec_jq`)
 - No image / video / asset support
 - Schema version pinning is informational only — opening a file in a newer tldraw may trigger migrations
 - `search_api` curated list is hand-maintained alongside the live `@tldraw/tlschema` reflection
@@ -124,11 +164,15 @@ src/
   validate.ts    validateShape / validateBinding using createShapeValidator + createBindingValidator
   checkpoint.ts  Timestamped backups under .tldraw-mcp-checkpoints/
   jq.ts          Shell-out to jq for the exec_jq escape hatch
+  text-metrics.ts Text size heuristics for autoFit + label measurement
+  graph-layout.ts Dagre wrapper for graph_layout
+  arrow-bending.ts Detect parallel-edge overlap + assign symmetric bend values
 
 test/
-  unit/          store + validate (13 tests)
-  integration/   tools end-to-end on tmp .tldr (18 tests)
+  unit/          store + validate + text-metrics + arrow-bending (34 tests)
+  integration/   tools end-to-end on tmp .tldr (36 tests)
   contract/      loadStoreSnapshot against real @tldraw/store (4 tests)
+  boundary/      N-1 / N / N+1 limits + concurrent writes (89 tests)
 ```
 
 Pure JSON manipulation — no `@tldraw/store`, no DOM, no React.

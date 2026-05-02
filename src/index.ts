@@ -17,6 +17,8 @@ import {
   alignSchema,
   autoLayout,
   autoLayoutSchema,
+  bendOverlappingArrows,
+  bendOverlappingArrowsSchema,
   distribute,
   distributeSchema,
   fitToText,
@@ -137,6 +139,11 @@ const tools = {
     description: 'Report measured label sizes (w, h) and current dx/dy distance between bound endpoints for every labeled arrow. Use to decide if you need more spacing before tweaking positions.',
     schema: measureArrowLabelsSchema,
     handler: measureArrowLabels,
+  },
+  bend_overlapping_arrows: {
+    description: 'Detect arrows sharing the same shape pair (parallel edges = visual overlap) and spread their props.bend symmetrically. Pass priority[] to keep important arrows straight; unlisted ones fall back to drawing order. graph_layout already calls this with default amount=30.',
+    schema: bendOverlappingArrowsSchema,
+    handler: bendOverlappingArrows,
   },
   create_page: {
     description: 'Create a new page in the document. Returns the new page id.',
