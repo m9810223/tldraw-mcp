@@ -1,0 +1,219 @@
+import { describe, expect, it } from 'vitest';
+import {
+  connect,
+  createGroup,
+  createPage,
+  createRect,
+  createText,
+  deleteShape,
+  execJq,
+  getShape,
+  listPages,
+  listShapes,
+  moveToPage,
+  searchApi,
+  ungroup,
+  updateShape,
+} from '../../src/tools.js';
+import { loadFile } from '../../src/store.js';
+import { withTempFile } from '../_helpers.js';
+
+describe('tools integration', () => {
+  const ctx = withTempFile();
+
+  it('create_rect adds a geo shape with Hello label', async () => {
+    const { id } = await createRect({ file: ctx.file, x: 10, y: 20, w: 100, h: 50, text: 'Hello' });
+    const shape = await getShape({ file: ctx.file, id });
+    expect(shape.type).toBe('geo');
+    expect(shape.x).toBe(10);
+    expect((shape.props as { richText: { content: { content: { text: string }[] }[] } }).richText.content[0].content[0].text).toBe('Hello');
+  });
+
+  it('list_shapes filters by type', async () => {
+    await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    await createText({ file: ctx.file, x: 100, y: 0, text: 'label' });
+    expect((await listShapes({ file: ctx.file })).count).toBe(2);
+    expect((await listShapes({ file: ctx.file, type: 'text' })).count).toBe(1);
+  });
+
+  it('connect creates arrow + 2 bindings', async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    const b = await createRect({ file: ctx.file, x: 200, y: 0, w: 50, h: 50 });
+    const result = await connect({ file: ctx.file, fromId: a.id, toId: b.id, text: 'flow' });
+    expect(result.bindings).toHaveLength(2);
+
+    const f = await loadFile(ctx.file);
+    const bindings = f.records.filter((r) => r.typeName === 'binding');
+    expect(bindings).toHaveLength(2);
+    const terminals = bindings.map((b) => (b.props as { terminal: string }).terminal).sort();
+    expect(terminals).toEqual(['end', 'start']);
+  });
+
+  it('connect refuses cross-page shapes', async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    const b = await createRect({ file: ctx.file, x: 200, y: 0, w: 50, h: 50 });
+    const p2 = await createPage({ file: ctx.file, name: 'P2' });
+    await moveToPage({ file: ctx.file, shapeIds: [b.id], pageId: p2.pageId, bindings: 'error' });
+    await expect(connect({ file: ctx.file, fromId: a.id, toId: b.id })).rejects.toThrow(/Cross-page/);
+  });
+
+  it('delete_shape with cascade removes related bindings and orphan arrow', async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    const b = await createRect({ file: ctx.file, x: 200, y: 0, w: 50, h: 50 });
+    await connect({ file: ctx.file, fromId: a.id, toId: b.id });
+
+    const result = await deleteShape({ file: ctx.file, id: a.id, cascade: true });
+    expect(result.removed.length).toBeGreaterThanOrEqual(3); // shape + 2 bindings + arrow
+
+    const f = await loadFile(ctx.file);
+    expect(f.records.filter((r) => r.typeName === 'binding')).toHaveLength(0);
+    expect(f.records.filter((r) => r.typeName === 'shape' && r.type === 'arrow')).toHaveLength(0);
+    expect(f.records.filter((r) => r.typeName === 'shape')).toHaveLength(1);
+  });
+
+  it('delete_shape without cascade leaves orphan bindings', async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    const b = await createRect({ file: ctx.file, x: 200, y: 0, w: 50, h: 50 });
+    await connect({ file: ctx.file, fromId: a.id, toId: b.id });
+
+    await deleteShape({ file: ctx.file, id: a.id, cascade: false });
+
+    const f = await loadFile(ctx.file);
+    expect(f.records.filter((r) => r.typeName === 'binding')).toHaveLength(2);
+  });
+
+  it('update_shape merges nested props', async () => {
+    const { id } = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    await updateShape({ file: ctx.file, id, patch: { x: 99, props: { color: 'blue' } } });
+
+    const shape = await getShape({ file: ctx.file, id });
+    expect(shape.x).toBe(99);
+    expect((shape.props as { color: string }).color).toBe('blue');
+    expect((shape.props as { w: number }).w).toBe(50);
+  });
+
+  it('group + ungroup round-trip preserves children', async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    const b = await createRect({ file: ctx.file, x: 100, y: 0, w: 50, h: 50 });
+    const { groupId } = await createGroup({ file: ctx.file, childIds: [a.id, b.id] });
+
+    let f = await loadFile(ctx.file);
+    expect(f.records.find((r) => r.id === a.id)?.parentId).toBe(groupId);
+
+    await ungroup({ file: ctx.file, groupId });
+
+    f = await loadFile(ctx.file);
+    expect(f.records.find((r) => r.id === a.id)?.parentId).toBe('page:page');
+    expect(f.records.find((r) => r.id === groupId)).toBeUndefined();
+  });
+
+  it('move_to_page bindings=error refuses when peer not moved', async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    const b = await createRect({ file: ctx.file, x: 200, y: 0, w: 50, h: 50 });
+    await connect({ file: ctx.file, fromId: a.id, toId: b.id });
+    const p2 = await createPage({ file: ctx.file, name: 'P2' });
+
+    await expect(
+      moveToPage({ file: ctx.file, shapeIds: [a.id], pageId: p2.pageId, bindings: 'error' }),
+    ).rejects.toThrow(/binding to/);
+  });
+
+  it("move_to_page bindings='pull' drags peer + arrow along", async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    const b = await createRect({ file: ctx.file, x: 200, y: 0, w: 50, h: 50 });
+    await connect({ file: ctx.file, fromId: a.id, toId: b.id });
+    const p2 = await createPage({ file: ctx.file, name: 'P2' });
+
+    const result = await moveToPage({
+      file: ctx.file,
+      shapeIds: [a.id],
+      pageId: p2.pageId,
+      bindings: 'pull',
+    });
+    expect(result.moved.length).toBe(3); // a + b + arrow
+
+    const f = await loadFile(ctx.file);
+    const onP2 = f.records.filter((r) => r.typeName === 'shape' && r.parentId === p2.pageId);
+    expect(onP2).toHaveLength(3);
+  });
+
+  it("move_to_page bindings='cut' drops dangling bindings", async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    const b = await createRect({ file: ctx.file, x: 200, y: 0, w: 50, h: 50 });
+    await connect({ file: ctx.file, fromId: a.id, toId: b.id });
+    const p2 = await createPage({ file: ctx.file, name: 'P2' });
+
+    const result = await moveToPage({
+      file: ctx.file,
+      shapeIds: [a.id],
+      pageId: p2.pageId,
+      bindings: 'cut',
+    });
+    expect(result.cutBindings?.length).toBeGreaterThan(0);
+
+    const f = await loadFile(ctx.file);
+    const aRecord = f.records.find((r) => r.id === a.id);
+    expect(aRecord?.parentId).toBe(p2.pageId);
+  });
+
+  it('list_pages reflects newly created page', async () => {
+    await createPage({ file: ctx.file, name: 'Second' });
+    const { pages } = await listPages({ file: ctx.file });
+    expect(pages.map((p) => p.name)).toEqual(['Page 1', 'Second']);
+  });
+
+  it('search_api returns curated list with stillSupported flags', async () => {
+    const result = await searchApi({ verbose: false });
+    expect(result.tldrawSchemaVersion).toBe(2);
+    expect(result.shapeTypes?.find((s) => s.type === 'geo')?.stillSupported).toBe(true);
+  });
+
+  it('search_api verbose returns live prop names', async () => {
+    const result = await searchApi({ type: 'geo', verbose: true });
+    expect(result.props).toContain('richText');
+    expect(result.props).toContain('scale');
+  });
+
+  it('exec_jq dry run does not modify the file', async () => {
+    await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    const before = await loadFile(ctx.file);
+    await execJq({ file: ctx.file, filter: '.records | length', write: false });
+    const after = await loadFile(ctx.file);
+    expect(JSON.stringify(after)).toBe(JSON.stringify(before));
+  });
+});
+
+import {
+  listCheckpointsTool,
+  restoreCheckpointTool,
+  saveCheckpointTool,
+} from '../../src/tools.js';
+
+describe('checkpoints', () => {
+  const ctx = withTempFile();
+
+  it('save_checkpoint creates a backup file', async () => {
+    await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    const { path } = await saveCheckpointTool({ file: ctx.file, label: 'one' });
+    expect(path).toMatch(/__one\.bak$/);
+
+    const list = await listCheckpointsTool({ file: ctx.file });
+    expect(list.checkpoints).toHaveLength(1);
+  });
+
+  it('restore_checkpoint reverts file content', async () => {
+    const before = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50 });
+    await saveCheckpointTool({ file: ctx.file, label: 'snap' });
+    await createRect({ file: ctx.file, x: 100, y: 100, w: 50, h: 50 });
+    expect((await listShapes({ file: ctx.file })).count).toBe(2);
+
+    await restoreCheckpointTool({ file: ctx.file });
+    const result = await listShapes({ file: ctx.file });
+    expect(result.count).toBe(1);
+    expect(result.shapes[0].id).toBe(before.id);
+  });
+
+  it('restore_checkpoint throws when no checkpoints exist', async () => {
+    await expect(restoreCheckpointTool({ file: ctx.file })).rejects.toThrow(/No checkpoints/);
+  });
+});

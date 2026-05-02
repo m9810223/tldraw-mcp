@@ -1,0 +1,10 @@
+node_modules
+dist
+coverage
+*.tsbuildinfo
+.DS_Store
+*.tldr.tmp
+test/**/*.js
+test/**/*.js.map
+__.tldr
+.tldraw-mcp-checkpoints/

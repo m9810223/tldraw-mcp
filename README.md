@@ -1,0 +1,185 @@
+# tldraw-mcp
+
+Minimal MCP server for editing tldraw `.tldr` files via JSON manipulation. Headless, no browser needed.
+
+## Status
+
+Working skeleton. Schema validation is wired (`@tldraw/tlschema` validators run before every write), fractional indexing uses `@tldraw/utils`, file writes are guarded by `proper-lockfile`. Output verified end-to-end against the real tldraw runtime via `Store.loadStoreSnapshot()` in the contract test layer.
+
+## Tools
+
+### File / page lifecycle
+
+| Tool                | What it does                                                         |
+| ------------------- | -------------------------------------------------------------------- |
+| `create_empty_file` | Create a fresh `.tldr` with a default page                           |
+| `create_page`       | Add a new page                                                       |
+| `list_pages`        | List pages with id, name, ordering index                             |
+| `move_to_page`      | Move shapes; `bindings: 'error' \| 'pull' \| 'cut'` controls binding handling |
+
+### Shapes
+
+| Tool           | What it does                                                       |
+| -------------- | ------------------------------------------------------------------ |
+| `create_rect`  | Create a rectangle (geo shape)                                     |
+| `create_text`  | Create a text shape                                                |
+| `create_group` | Group shapes by reparenting them                                   |
+| `ungroup`      | Dissolve a group, reparenting its children to the group's parent   |
+| `connect`      | Arrow + bindings between two same-page shapes                      |
+| `list_shapes`  | List shapes — id, type, x, y, label only                           |
+| `get_shape`    | Full record of one shape by id                                     |
+| `update_shape` | Shallow-merge patch (use nested `{ "props": {...} }` for prop edits) |
+| `delete_shape` | Delete by id; `cascade: true` (default) also removes attached arrows + bindings |
+
+### Discovery & escape hatch (inspired by official `tldraw-mcp-app`)
+
+| Tool         | What it does                                                                            | Token cost |
+| ------------ | --------------------------------------------------------------------------------------- | ---------- |
+| `search_api` | List supported shape types + curated required props. Pass `{type, verbose:true}` to dump live prop names from `@tldraw/tlschema` for any type (including ones not in the curated list) | low / medium  |
+| `exec_jq`    | Run a `jq` filter against the file. `write=true` persists (auto-checkpoint first)       | varies     |
+
+### Checkpoints (safety)
+
+| Tool                 | What it does                                           | Token cost |
+| -------------------- | ------------------------------------------------------ | ---------- |
+| `save_checkpoint`    | Copy `.tldr` to a timestamped backup                   | low        |
+| `list_checkpoints`   | List backups, newest first                             | low        |
+| `restore_checkpoint` | Restore a backup (most recent if `checkpoint` omitted) | low        |
+
+The token-saving design: tools take primitive args, return ids or `ok`. The full JSON only enters context when you call `get_shape` deliberately.
+
+## Install
+
+Replace `<USER>` with the GitHub user/org that hosts this repo.
+
+### Option 1 · `npx` (no install, recommended)
+
+```bash
+npx -y github:<USER>/tldraw-mcp
+```
+
+First run clones, runs `npm install`, then triggers the `prepare` script which builds `dist/`. Subsequent runs are cached.
+
+Pin a branch / tag / commit:
+
+```bash
+npx -y github:<USER>/tldraw-mcp#main
+npx -y github:<USER>/tldraw-mcp#v0.1.0
+npx -y github:<USER>/tldraw-mcp#abc1234
+```
+
+### Option 2 · Global install
+
+```bash
+npm install -g github:<USER>/tldraw-mcp
+tldraw-mcp   # the bin is on PATH
+```
+
+### Option 3 · Private repo over SSH
+
+```bash
+npx -y git+ssh://git@github.com/<USER>/tldraw-mcp.git
+```
+
+### Option 4 · Local clone (for development)
+
+```bash
+git clone https://github.com/<USER>/tldraw-mcp.git
+cd tldraw-mcp
+npm install
+npm run build
+node dist/index.js   # stdio MCP — waits on stdin
+```
+
+### Requirements
+
+- Node.js ≥ 20 (enforced by `engines.node`)
+- `jq` on `PATH` (only required for the `exec_jq` tool)
+  - macOS: `brew install jq`
+  - Debian/Ubuntu: `sudo apt-get install -y jq`
+
+## Wire up to Claude Code
+
+`claude mcp add` (recommended):
+
+```bash
+claude mcp add tldraw npx -y github:<USER>/tldraw-mcp
+```
+
+…or by editing `.mcp.json` (project) / `~/.claude.json` (user-global):
+
+```json
+{
+  "mcpServers": {
+    "tldraw": {
+      "command": "npx",
+      "args": ["-y", "github:<USER>/tldraw-mcp"]
+    }
+  }
+}
+```
+
+If you installed globally with Option 2:
+
+```json
+{
+  "mcpServers": {
+    "tldraw": { "command": "tldraw-mcp" }
+  }
+}
+```
+
+Restart Claude Code, then `/mcp` should list the `tldraw` server with 17 tools.
+
+## Wire up to other MCP clients
+
+Same JSON shape, different config file location:
+
+| Client          | Config path                                                              |
+| --------------- | ------------------------------------------------------------------------ |
+| Claude Desktop  | `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) |
+| Cursor          | `~/.cursor/mcp.json`                                                     |
+| VS Code         | `.vscode/mcp.json`                                                       |
+
+## Bootstrapping a `.tldr` file
+
+Use the `create_empty_file` tool, or save an empty canvas from tldraw.com and point tools at the absolute path.
+
+```
+create_empty_file({ file: "/tmp/demo.tldr" })
+```
+
+## Design comparison vs official `tldraw-mcp-app`
+
+The Cloudflare-hosted official MCP exposes only `search` + `exec` (run any JS in a live tldraw Editor). This skeleton goes the opposite way — typed JSON edits over `.tldr` files — and borrows the discovery pattern (`search_api`) and escape hatch (`exec_jq`) so an LLM can fall through when typed tools don't cover an operation.
+
+|              | Official `tldraw-mcp-app`           | This skeleton                                  |
+| ------------ | ----------------------------------- | ---------------------------------------------- |
+| Transport    | streamable-http + sse (Cloudflare)  | stdio (works in Claude Code directly)          |
+| Runtime      | Real tldraw Editor in widget iframe | Pure Node, edits raw JSON                      |
+| Tools        | 2 (`search`, `exec`) + checkpoints  | 7 typed CRUD + `search_api` + `exec_jq` + ckpt |
+| Live preview | Yes (widget iframe)                 | No (open the file in tldraw to view)           |
+| Coverage     | Whole Editor API                    | Geo / text / arrow + jq escape hatch           |
+
+## Known gaps
+
+- No schema validation — bad input may produce a file tldraw refuses to open
+- No multi-page support — everything goes on `page:main`
+- No grouping, alignment, ordering tools
+- `index` is naive: appends above the current max; doesn't support insert-between
+- No file lock — concurrent writes can corrupt
+- Schema version pinning not enforced — newer tldraw may need migration
+
+## Architecture
+
+```
+src/
+  index.ts       MCP server entry, tool registration
+  tools.ts       Tool handlers + zod input schemas
+  shapes.ts      tldraw record factories (geo/text/arrow/binding)
+  store.ts       Load/save .tldr, helpers (id gen, indexing, find)
+  checkpoint.ts  Timestamped backups under .tldraw-mcp-checkpoints/
+  jq.ts          Shell-out to jq for the exec_jq escape hatch
+```
+
+Pure JSON manipulation — no `@tldraw/store`, no DOM, no React.
