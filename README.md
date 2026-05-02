@@ -62,16 +62,16 @@ Source file: [`docs/demo.tldr`](docs/demo.tldr)
 
 ### Layout / text fitting
 
-| Tool                   | What it does                                                            |
-| ---------------------- | ----------------------------------------------------------------------- |
-| `fit_to_text`          | Resize a geo/text shape to fit its current text content                 |
-| `align`                | Align shapes on an axis (left/right/top/bottom/center-x/center-y)       |
-| `distribute`           | Even-space shapes between the outermost two                             |
-| `auto_layout`          | Lay shapes out in a horizontal/vertical chain                           |
-| `graph_layout`         | Dagre layout for arrow-connected shapes (best for non-chain topologies) |
-| `measure_arrow_labels` | Report label sizes + endpoint distances for labeled arrows              |
+| Tool                      | What it does                                                                                                                                 |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fit_to_text`             | Resize a geo/text shape to fit its current text content                                                                                      |
+| `align`                   | Align shapes on an axis (left/right/top/bottom/center-x/center-y)                                                                            |
+| `distribute`              | Even-space shapes between the outermost two                                                                                                  |
+| `auto_layout`             | Lay shapes out in a horizontal/vertical chain                                                                                                |
+| `graph_layout`            | Dagre layout for arrow-connected shapes (best for non-chain topologies)                                                                      |
+| `measure_arrow_labels`    | Report label sizes + endpoint distances for labeled arrows                                                                                   |
 | `bend_overlapping_arrows` | Bend parallel arrows (same shape pair) symmetrically; `priority[]` keeps important arrows straight. `graph_layout` calls this automatically. |
-| `polish_layout`        | One-shot finisher: `fit_to_text` every node + `graph_layout` (auto-bends arrows). Use as the last step after building a fresh diagram. |
+| `polish_layout`           | One-shot finisher: `fit_to_text` every node + `graph_layout` (auto-bends arrows). Use as the last step after building a fresh diagram.       |
 
 ### Discovery & escape hatch
 
@@ -138,13 +138,13 @@ The VS Code extension is the smoothest dev loop — keep `code path/to/file.tldr
 
 The Cloudflare-hosted official MCP exposes only `search` + `exec` (run any JS in a live tldraw Editor). This skeleton goes the opposite way — typed JSON edits over `.tldr` files — and borrows the discovery pattern (`search_api`) and escape hatch (`exec_jq`) so an LLM can fall through when typed tools don't cover an operation.
 
-|              | Official `tldraw-mcp-app`           | This skeleton                                                       |
-| ------------ | ----------------------------------- | ------------------------------------------------------------------- |
-| Transport    | streamable-http + sse (Cloudflare)  | stdio (works in Claude Code directly)                               |
-| Runtime      | Real tldraw Editor in widget iframe | Pure Node, edits raw JSON                                           |
+|              | Official `tldraw-mcp-app`           | This skeleton                                                         |
+| ------------ | ----------------------------------- | --------------------------------------------------------------------- |
+| Transport    | streamable-http + sse (Cloudflare)  | stdio (works in Claude Code directly)                                 |
+| Runtime      | Real tldraw Editor in widget iframe | Pure Node, edits raw JSON                                             |
 | Tools        | 2 (`search`, `exec`) + checkpoints  | 26: file/page (4) + shape (9) + layout (8) + discovery (2) + ckpt (3) |
-| Live preview | Yes (widget iframe)                 | No (open the file in tldraw to view)                                |
-| Coverage     | Whole Editor API                    | Geo / text / arrow + jq escape hatch                                |
+| Live preview | Yes (widget iframe)                 | No (open the file in tldraw to view)                                  |
+| Coverage     | Whole Editor API                    | Geo / text / arrow + jq escape hatch                                  |
 
 ## Known gaps
 
