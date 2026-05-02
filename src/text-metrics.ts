@@ -11,6 +11,18 @@ const SIZE_METRICS: Record<'s' | 'm' | 'l' | 'xl', { charWidth: number; lineHeig
   xl: { charWidth: 32, lineHeight: 56 },
 };
 
+// tldraw arrow labels have no width prop — they wrap at ~14 chars (size m, draw font),
+// breaking mid-word for words > ~7 chars. When at least one long word exists, we force
+// breaks at whitespace so every word stays on its own line and tldraw never has to
+// hard-break inside a word.
+export function safeArrowLabel(text: string, maxWordLen = 8): string {
+  if (!text || text.includes('\n')) return text;
+  const words = text.split(/\s+/).filter((w) => w.length > 0);
+  if (words.length <= 1) return text;
+  if (words.every((w) => w.length <= maxWordLen)) return text;
+  return words.join('\n');
+}
+
 export function extractText(shape: TLRecord): string {
   const props = shape.props as Record<string, unknown> | undefined;
   if (!props) return '';
