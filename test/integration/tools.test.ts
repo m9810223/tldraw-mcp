@@ -550,7 +550,7 @@ describe('tools integration', () => {
     expect(r.placed).toBe(0);
   });
 
-  it('polish_layout pre-breaks long arrow labels at word boundaries', async () => {
+  it('polish_layout leaves arrow labels untouched by default', async () => {
     const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50, text: 'User' });
     const b = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50, text: 'Client' });
     const arrow = await connect({
@@ -560,7 +560,25 @@ describe('tools integration', () => {
       text: '1. Initiates login',
     });
 
-    const r = await polishLayout({ file: ctx.file, direction: 'LR', padding: 16 });
+    const r = await polishLayout({ file: ctx.file, direction: 'LR', padding: 16, relabelArrows: false });
+    expect(r.relabeledArrows).toBe(0);
+
+    const f = await loadFile(ctx.file);
+    const arrowShape = f.records.find((rec) => rec.id === arrow.arrowId)!;
+    expect((arrowShape.props as { text: string }).text).toBe('1. Initiates login');
+  });
+
+  it('polish_layout pre-breaks long arrow labels when relabelArrows=true', async () => {
+    const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50, text: 'User' });
+    const b = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50, text: 'Client' });
+    const arrow = await connect({
+      file: ctx.file,
+      fromId: a.id,
+      toId: b.id,
+      text: '1. Initiates login',
+    });
+
+    const r = await polishLayout({ file: ctx.file, direction: 'LR', padding: 16, relabelArrows: true });
     expect(r.relabeledArrows).toBe(1);
 
     const f = await loadFile(ctx.file);
@@ -568,7 +586,7 @@ describe('tools integration', () => {
     expect((arrowShape.props as { text: string }).text).toBe('1.\nInitiates\nlogin');
   });
 
-  it('polish_layout leaves short arrow labels untouched', async () => {
+  it('polish_layout with relabelArrows=true leaves short arrow labels untouched', async () => {
     const a = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50, text: 'User' });
     const b = await createRect({ file: ctx.file, x: 0, y: 0, w: 50, h: 50, text: 'Client' });
     const arrow = await connect({
@@ -578,7 +596,7 @@ describe('tools integration', () => {
       text: '1. Access app',
     });
 
-    const r = await polishLayout({ file: ctx.file, direction: 'LR', padding: 16 });
+    const r = await polishLayout({ file: ctx.file, direction: 'LR', padding: 16, relabelArrows: true });
     expect(r.relabeledArrows).toBe(0);
 
     const f = await loadFile(ctx.file);

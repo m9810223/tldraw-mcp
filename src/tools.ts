@@ -782,6 +782,10 @@ export const polishLayoutSchema = z.object({
   file: FilePath,
   direction: z.enum(['LR', 'TB', 'RL', 'BT']).default('LR'),
   padding: z.number().nonnegative().default(16).describe('Padding for fit_to_text on each node'),
+  relabelArrows: z
+    .boolean()
+    .default(false)
+    .describe('When true, force newlines between words on long arrow labels so tldraw never hard-breaks mid-word. Off by default — leaves user-provided arrow text untouched.'),
 });
 
 export async function polishLayout(args: z.infer<typeof polishLayoutSchema>) {
@@ -793,6 +797,7 @@ export async function polishLayout(args: z.infer<typeof polishLayoutSchema>) {
     for (const shape of shapesOf(file)) {
       const type = shape.type as string;
       if (type === 'arrow') {
+        if (!args.relabelArrows) continue;
         const props = shape.props as { text?: string };
         const safe = safeArrowLabel(props.text ?? '');
         if (safe !== props.text) {
