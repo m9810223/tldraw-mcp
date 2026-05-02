@@ -53,12 +53,17 @@ The token-saving design: tools take primitive args, return ids or `ok`. The full
 Requires **Node ≥ 20**. `jq` only needed for `exec_jq` (`brew install jq` / `apt-get install jq`).
 
 ```bash
-# Install (or reinstall after upstream changes) — user scope = available from any project
+# Install — local scope (default): only the current project directory
+claude mcp remove tldraw-m9810223 2>/dev/null; rm -rf ~/.npm/_npx
+claude mcp add tldraw-m9810223 -- npx -y github:m9810223/tldraw-mcp
+
+# Install — user scope: every project on this machine (recommended)
 claude mcp remove tldraw-m9810223 -s user 2>/dev/null; rm -rf ~/.npm/_npx
 claude mcp add -s user tldraw-m9810223 -- npx -y github:m9810223/tldraw-mcp
 
-# Remove
-claude mcp remove tldraw-m9810223 -s user
+# Remove (match the scope you installed under)
+claude mcp remove tldraw-m9810223          # local (default)
+claude mcp remove tldraw-m9810223 -s user  # user
 ```
 
 The first arg (`tldraw-m9810223`) is the local server name — pick whatever you like, then refer to it the same way in subsequent commands. Restart Claude Code, then `/mcp` lists it with 22 tools.
