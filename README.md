@@ -1,6 +1,6 @@
 # tldraw-mcp
 
-Minimal MCP server for editing tldraw `.tldr` files via JSON manipulation. Headless, no browser needed.
+A Claude Code plugin: 26-tool MCP server for editing tldraw `.tldr` files via JSON manipulation (headless, no browser needed), plus a `tldraw-screenshot` skill that renders a `.tldr` to PNG via tldraw.com so Claude can SEE the diagram.
 
 ## Status
 
@@ -10,14 +10,16 @@ Working skeleton. Schema validation is wired (`@tldraw/tlschema` validators run 
 
 Requires **Node ≥ 20**.
 
-**1. Install** (user scope — available in every project):
+**1. Install as a Claude Code plugin** (one command registers the marketplace, the second installs the bundled MCP server + skill):
 
 ```bash
-claude mcp remove tldraw-m9810223 -s user 2>/dev/null; rm -rf ~/.npm/_npx
-claude mcp add -s user tldraw-m9810223 -- npx -y github:m9810223/tldraw-mcp
+claude plugin marketplace add github:m9810223/tldraw-mcp
+claude plugin install tldraw-mcp@tldraw-mcp
 ```
 
-Restart Claude Code. `/mcp` should now list `tldraw-m9810223`.
+Restart Claude Code. `/mcp` lists `tldraw-m9810223` (26 tools); `/plugin` lists `tldraw-mcp`; the `tldraw-screenshot` skill is available too.
+
+If you'd rather wire just the MCP server (no skill), see [Install / Update / Remove](#install--update--remove) below.
 
 **2. Try the demo prompt** in Claude Code:
 
@@ -94,8 +96,27 @@ The token-saving design: tools take primitive args, return ids or `ok`. The full
 
 `jq` only needed for `exec_jq` (`brew install jq` / `apt-get install jq`).
 
+### As a plugin (recommended — bundles MCP server + skill)
+
 ```bash
-# Install — user scope: every project on this machine (recommended)
+# Install (user scope by default)
+claude plugin marketplace add github:m9810223/tldraw-mcp
+claude plugin install tldraw-mcp@tldraw-mcp
+
+# Update
+claude plugin update tldraw-mcp
+
+# Remove
+claude plugin uninstall tldraw-mcp
+claude plugin marketplace remove tldraw-mcp
+```
+
+### MCP server only (no skill)
+
+Use this if you want the editing tools but not the screenshot skill, or you're on a Claude client that doesn't speak Code's plugin system.
+
+```bash
+# Install — user scope: every project on this machine
 claude mcp remove tldraw-m9810223 -s user 2>/dev/null; rm -rf ~/.npm/_npx
 claude mcp add -s user tldraw-m9810223 -- npx -y github:m9810223/tldraw-mcp
 
@@ -126,13 +147,16 @@ create_empty_file({ file: "/tmp/demo.tldr" })
 
 ## Viewing / editing the output
 
-| Tool                                                                                                     | Notes                                                                                   |
-| -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| [tldraw.com](https://tldraw.com)                                                                         | Drag the `.tldr` file onto the page                                                     |
-| [tldraw VS Code extension](https://marketplace.visualstudio.com/items?itemName=tldraw-org.tldraw-vscode) | Native `.tldr` preview + edit inside VS Code; survives file changes from the MCP server |
-| Tldraw Desktop / official editor                                                                         | Drop the file in                                                                        |
+| Tool                                                                                                     | Notes                                                                                                                       |
+| -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `tldraw-screenshot` skill (bundled)                                                                      | Programmatic render to PNG via `playwright-cli` + tldraw.com. Triggers automatically when Claude wants to see a `.tldr`     |
+| [tldraw.com](https://tldraw.com)                                                                         | Drag the `.tldr` file onto the page                                                                                         |
+| [tldraw VS Code extension](https://marketplace.visualstudio.com/items?itemName=tldraw-org.tldraw-vscode) | Native `.tldr` preview + edit inside VS Code; survives file changes from the MCP server                                     |
+| Tldraw Desktop / official editor                                                                         | Drop the file in                                                                                                            |
 
 The VS Code extension is the smoothest dev loop — keep `code path/to/file.tldr` open in a tab while the MCP edits it; the editor refreshes on disk change.
+
+The `tldraw-screenshot` skill is the smoothest **agent** loop — Claude edits via the MCP, renders via the skill, looks at the PNG, edits again. See [`skills/tldraw-screenshot/SKILL.md`](skills/tldraw-screenshot/SKILL.md) for the workflow and gotchas. Requires [`playwright-cli`](https://www.npmjs.com/package/@playwright/cli) on `PATH`.
 
 ## Design comparison vs official `tldraw-mcp-app`
 
@@ -156,6 +180,15 @@ The Cloudflare-hosted official MCP exposes only `search` + `exec` (run any JS in
 ## Architecture
 
 ```
+.claude-plugin/
+  plugin.json       Plugin metadata + pointers to mcpServers + skills
+  marketplace.json  Marketplace manifest so `claude plugin install` can find this
+.mcp.json           Plugin-scoped MCP server declaration (npx-from-github)
+
+skills/
+  tldraw-screenshot/
+    SKILL.md        Workflow for rendering .tldr → PNG via playwright-cli + tldraw.com
+
 src/
   index.ts       MCP server entry, tool registration (stdio transport)
   tools.ts       Tool handlers + zod input schemas

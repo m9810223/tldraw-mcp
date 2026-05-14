@@ -1,0 +1,18 @@
+{
+  "name": "tldraw-mcp",
+  "description": "tldraw-mcp: MCP server for editing .tldr files + a viewing skill",
+  "owner": {
+    "name": "m9810223"
+  },
+  "plugins": [
+    {
+      "name": "tldraw-mcp",
+      "description": "Edit and view tldraw .tldr files: a 26-tool MCP server for headless JSON manipulation of shapes / pages / layout, plus a skill that renders a .tldr to PNG via tldraw.com so Claude can SEE the diagram.",
+      "version": "0.1.0",
+      "source": "./",
+      "author": {
+        "name": "m9810223"
+      }
+    }
+  ]
+}

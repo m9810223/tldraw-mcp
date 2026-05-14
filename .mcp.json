@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "tldraw-m9810223": {
+      "command": "npx",
+      "args": ["-y", "github:m9810223/tldraw-mcp"]
+    }
+  }
+}

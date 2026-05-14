@@ -1,0 +1,20 @@
+{
+  "name": "tldraw-mcp",
+  "description": "Edit and view tldraw .tldr files: a 26-tool MCP server for headless JSON manipulation of shapes / pages / layout, plus a skill that renders a .tldr to PNG via tldraw.com so Claude can SEE the diagram.",
+  "version": "0.1.0",
+  "author": {
+    "name": "m9810223"
+  },
+  "homepage": "https://github.com/m9810223/tldraw-mcp",
+  "repository": "https://github.com/m9810223/tldraw-mcp",
+  "license": "MIT",
+  "keywords": [
+    "tldraw",
+    "mcp",
+    "diagram",
+    "whiteboard",
+    "skill"
+  ],
+  "mcpServers": "./.mcp.json",
+  "skills": "./skills/"
+}
