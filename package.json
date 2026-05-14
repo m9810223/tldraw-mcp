@@ -1,11 +1,11 @@
 {
-  "name": "tldraw-mcp",
+  "name": "tldraw-m9810223",
   "version": "0.1.0",
   "private": true,
   "description": "MCP server for editing tldraw .tldr files",
   "type": "module",
   "bin": {
-    "tldraw-mcp": "./dist/index.js"
+    "tldraw-m9810223": "./dist/index.js"
   },
   "files": [
     "dist",

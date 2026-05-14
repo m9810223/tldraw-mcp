@@ -198,7 +198,7 @@ const tools = {
 } as const;
 
 const server = new Server(
-  { name: 'tldraw-mcp', version: '0.1.0' },
+  { name: 'tldraw-m9810223', version: '0.1.0' },
   { capabilities: { tools: {} } },
 );
 

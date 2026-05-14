@@ -1,5 +1,5 @@
 {
-  "name": "tldraw-mcp",
+  "name": "tldraw-m9810223",
   "description": "Edit and view tldraw .tldr files: a 26-tool MCP server for headless JSON manipulation of shapes / pages / layout, plus a skill that renders a .tldr to PNG via tldraw.com so Claude can SEE the diagram.",
   "version": "0.1.0",
   "author": {

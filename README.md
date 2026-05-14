@@ -1,4 +1,4 @@
-# tldraw-mcp
+# tldraw-m9810223
 
 A Claude Code plugin: 26-tool MCP server for editing tldraw `.tldr` files via JSON manipulation (headless, no browser needed), plus a `tldraw-screenshot` skill that renders a `.tldr` to PNG via tldraw.com so Claude can SEE the diagram.
 
@@ -13,11 +13,11 @@ Requires **Node ≥ 20**.
 **1. Install as a Claude Code plugin** (one command registers the marketplace, the second installs the bundled MCP server + skill):
 
 ```bash
-claude plugin marketplace add github:m9810223/tldraw-mcp
-claude plugin install tldraw-mcp@tldraw-mcp
+claude plugin marketplace add m9810223/tldraw-m9810223
+claude plugin install tldraw-m9810223@tldraw-m9810223
 ```
 
-Restart Claude Code. `/mcp` lists `tldraw-m9810223` (26 tools); `/plugin` lists `tldraw-mcp`; the `tldraw-screenshot` skill is available too.
+Restart Claude Code. `/mcp` lists `tldraw-m9810223` (26 tools); `/plugin` lists `tldraw-m9810223`; the `tldraw-screenshot` skill is available too.
 
 If you'd rather wire just the MCP server (no skill), see [Install / Update / Remove](#install--update--remove) below.
 
@@ -33,7 +33,7 @@ https://semgrep.dev/blog/2026/malicious-dependency-in-pytorch-lightning-used-for
 
 **3. View the result** — drop `./demo.tldr` onto [tldraw.com](https://tldraw.com), or use the [tldraw VS Code extension](https://marketplace.visualstudio.com/items?itemName=tldraw-org.tldraw-vscode) for live preview.
 
-![Shai-Hulud supply-chain attack flow recreated by tldraw-mcp](docs/demo.png)
+![Shai-Hulud supply-chain attack flow recreated by tldraw-m9810223](docs/demo.png)
 
 Source file: [`docs/demo.tldr`](docs/demo.tldr)
 
@@ -100,15 +100,15 @@ The token-saving design: tools take primitive args, return ids or `ok`. The full
 
 ```bash
 # Install (user scope by default)
-claude plugin marketplace add github:m9810223/tldraw-mcp
-claude plugin install tldraw-mcp@tldraw-mcp
+claude plugin marketplace add m9810223/tldraw-m9810223
+claude plugin install tldraw-m9810223@tldraw-m9810223
 
 # Update
-claude plugin update tldraw-mcp
+claude plugin update tldraw-m9810223
 
 # Remove
-claude plugin uninstall tldraw-mcp
-claude plugin marketplace remove tldraw-mcp
+claude plugin uninstall tldraw-m9810223
+claude plugin marketplace remove tldraw-m9810223
 ```
 
 ### MCP server only (no skill)
@@ -118,11 +118,11 @@ Use this if you want the editing tools but not the screenshot skill, or you're o
 ```bash
 # Install — user scope: every project on this machine
 claude mcp remove tldraw-m9810223 -s user 2>/dev/null; rm -rf ~/.npm/_npx
-claude mcp add -s user tldraw-m9810223 -- npx -y github:m9810223/tldraw-mcp
+claude mcp add -s user tldraw-m9810223 -- npx -y github:m9810223/tldraw-m9810223
 
 # Install — local scope (default): only the current project directory
 claude mcp remove tldraw-m9810223 2>/dev/null; rm -rf ~/.npm/_npx
-claude mcp add tldraw-m9810223 -- npx -y github:m9810223/tldraw-mcp
+claude mcp add tldraw-m9810223 -- npx -y github:m9810223/tldraw-m9810223
 ```
 
 The first arg (`tldraw-m9810223`) is the local server name — pick whatever you like, then refer to it the same way in subsequent commands. Restart Claude Code, then `/mcp` lists it with 26 tools.
