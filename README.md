@@ -109,6 +109,11 @@ claude plugin update tldraw-m9810223
 # Remove
 claude plugin uninstall tldraw-m9810223
 claude plugin marketplace remove tldraw-m9810223
+rm -rf ~/.claude/plugins/cache/tldraw-m9810223   # optional — also drop the cached clone
+
+# Verify clean (both should print nothing)
+claude plugin list | grep tldraw
+claude mcp list | grep -i tldraw
 ```
 
 ### MCP server only (no skill)
