@@ -10,7 +10,7 @@ export function withTempFile(): TestCtx {
   const ctx: TestCtx = { file: '' };
 
   beforeEach(async () => {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'tldraw-mcp-test-'));
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'tldraw-m9810223-test-'));
     ctx.file = path.join(dir, 'doc.tldr');
     await createEmptyFile({ file: ctx.file, overwrite: true });
   });
