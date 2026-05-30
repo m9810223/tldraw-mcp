@@ -13,27 +13,29 @@ A sequence of `playwright-cli` commands — no bundled script — so you can see
 
 ### 1. Get a browser session on tldraw.com
 
+Every `playwright-cli` invocation in this workflow uses `-s=tldraw-screenshot` so the browser is isolated from the user's default session and from other concurrent `playwright-cli` work.
+
 ```bash
 # Reuse if open, else launch
-playwright-cli list 2>&1 | grep -q "default:" \
-  || playwright-cli open "https://tldraw.com"
+playwright-cli list 2>&1 | grep -q "tldraw-screenshot:" \
+  || playwright-cli -s=tldraw-screenshot open "https://tldraw.com"
 
 # Navigate if we're on some other URL
-CURRENT_URL=$(playwright-cli --raw eval "() => location.href" 2>/dev/null || echo "")
+CURRENT_URL=$(playwright-cli -s=tldraw-screenshot --raw eval "() => location.href" 2>/dev/null || echo "")
 case "$CURRENT_URL" in
   *tldraw.com*) ;;
-  *) playwright-cli goto "https://tldraw.com" && sleep 5 ;;
+  *) playwright-cli -s=tldraw-screenshot goto "https://tldraw.com" && sleep 5 ;;
 esac
 
 # Bigger viewport = more pixels per shape after zoomToFit
-playwright-cli resize 2400 1600
+playwright-cli -s=tldraw-screenshot resize 2400 1600
 ```
 
 ### 2. Wait for the editor to mount
 
 ```bash
 for _ in $(seq 1 20); do
-  READY=$(playwright-cli --raw eval "() => typeof window.editor !== 'undefined'" 2>/dev/null)
+  READY=$(playwright-cli -s=tldraw-screenshot --raw eval "() => typeof window.editor !== 'undefined'" 2>/dev/null)
   [[ "$READY" == "true" ]] && break
   sleep 1
 done
@@ -46,19 +48,19 @@ done
 cd "$(dirname /path/to/file.tldr)"
 
 B64=$(base64 < file.tldr | tr -d '\n')   # portable: works on macOS (BSD) and Linux (GNU)
-playwright-cli --raw eval "() => { const b64='$B64'; const text=new TextDecoder().decode(new Uint8Array([...atob(b64)].map(c=>c.charCodeAt(0)))); const j=JSON.parse(text); const store=Object.fromEntries((j.records||[]).map(r=>[r.id,r])); window.editor.store.loadStoreSnapshot({schema:j.schema, store}); window.editor.zoomToFit(); return j.records.length; }"
+playwright-cli -s=tldraw-screenshot --raw eval "() => { const b64='$B64'; const text=new TextDecoder().decode(new Uint8Array([...atob(b64)].map(c=>c.charCodeAt(0)))); const j=JSON.parse(text); const store=Object.fromEntries((j.records||[]).map(r=>[r.id,r])); window.editor.store.loadStoreSnapshot({schema:j.schema, store}); window.editor.zoomToFit(); return j.records.length; }"
 sleep 2
 ```
 
 ### 4. Screenshot, then read
 
 ```bash
-playwright-cli screenshot --filename=render.png   # lands in cwd
+playwright-cli -s=tldraw-screenshot screenshot --filename=render.png   # lands in cwd
 # Then in Claude:
 # Read(file_path="<cwd>/render.png")
 ```
 
-For dense diagrams, bump `playwright-cli resize 3200 2000` (or larger) before step 3 so text stays legible after `zoomToFit`.
+For dense diagrams, bump `playwright-cli -s=tldraw-screenshot resize 3200 2000` (or larger) before step 3 so text stays legible after `zoomToFit`.
 
 ## Why it works (the five gotchas)
 
